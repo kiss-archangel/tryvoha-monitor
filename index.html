@@ -186,7 +186,14 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
   <div class="card panel"><h3>Хвилина мовчання</h3>
     <div class="row field"><span style="color:var(--fg)">Автозапуск щодня</span><button class="sw" id="silOn" role="switch" aria-checked="true" aria-label="Автозапуск"></button></div>
     <div class="row field"><span style="color:var(--fg)">Час запуску</span><span id="silFixed" style="color:var(--mut)"></span></div>
-    <div class="row" style="margin-bottom:12px"><span class="st" style="color:var(--mut)">Єдиний час для всіх відвідувачів, за київським часом. Годинник береться з сервера, а не з пристрою.</span></div>
+    <div class="row" style="margin-bottom:12px"><span class="st">Єдиний час для всіх відвідувачів, за київським часом. Змінити його може лише адміністратор.</span></div>
+    <div class="row" id="admForm" hidden style="margin-bottom:12px"><input type="password" id="admPw" placeholder="Пароль адміністратора" autocomplete="off"><button class="btn sm" id="admGo">OK</button></div>
+    <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="admUnlock">🔓 Розблокувати</button></div>
+    <div id="admPanel" hidden>
+      <label class="field"><span>Новий час запуску (Київ)</span><input type="time" id="silTime" step="1" value="08:59:00"></label>
+      <div class="chips" id="presets" style="margin-bottom:12px"><button data-t="08:59:00">08:59</button><button data-t="09:00:00">09:00</button><button data-t="12:00:00">12:00</button></div>
+      <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="silSave">💾 Зберегти для всіх</button><button class="btn sm" id="admLock">🔒 Заблокувати</button></div>
+    </div>
     <button class="btn sm" id="silTest">🔔 Тест звуку</button>
   </div>
   <div class="card panel"><h3>Звуки тривоги</h3>
@@ -292,8 +299,13 @@ refreshNoise()}
 document.querySelectorAll(".seg button").forEach(function(b){b.addEventListener("click",function(){demo=true;if(liveOn)$("liveBack").hidden=false;setMode(b.dataset.mode,true)})});
 
 /* silence minute: єдиний час для всіх (Київ), спільний годинник, синхронне відтворення */
-var SIL_TIME="08:59:00"; /* <-- час запуску за київським часом (ГГ:ХХ:СС), однаковий для всіх */
-var SIL_SEC=(function(p){return(+p[0])*3600+(+p[1]||0)*60+(+p[2]||0)})(SIL_TIME.split(":"));
+var SIL_DEFAULT="08:59:00",SIL_RE=/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+function nt(v){return v.length===5?v+":00":v}
+function parseT(v){var p=v.split(":");return(+p[0])*3600+(+p[1]||0)*60+(+p[2]||0)}
+var SIL_TIME=SIL_RE.test(S.silG||"")?S.silG:SIL_DEFAULT; /* час із сервера (змінюється адміністратором); тут лише запасне значення */
+var SIL_SEC=parseT(SIL_TIME);
+var SIL_API=(PUBLIC_PROXY||"").replace(/\/proxy\/.*$/,"")+"/proxy/silence";
+var ADM_PW=null; /* пароль лише в пам'яті сторінки */
 var SIL_FALLBACK=170; /* тривалість, поки не завантажились метадані mp3 */
 var C=2*Math.PI*78;
 var silTotal=60,silT0=0,silAuto=false,silBlocked=false,skipDay=0;
@@ -366,6 +378,34 @@ setInterval(function(){if(!S.silOn||silActive)return;var k=kyivNow();if(k.day===
 /* якщо браузер заблокував автозвук: перший дотик вмикає звук одразу з правильної секунди */
 ["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(silActive&&silBlocked){silBlocked=false;playSilAt(silAuto?globalEp():silElapsed());drawSil()}},true)});
 syncClock();
+
+/* --- спільний час запуску: читається з сервера, змінюється паролем адміністратора --- */
+function applySil(t){t=nt(t);if(t===SIL_TIME)return;var wasAuto=silActive&&silAuto;SIL_TIME=t;SIL_SEC=parseT(t);S.silG=t;save();
+if(wasAuto)stopSil(false);skipDay=0;$("silFixed").textContent=SIL_TIME+" (Київ)";if($("admPanel").hidden)$("silTime").value=SIL_TIME;drawSil()}
+function fetchSil(){if(!PUBLIC_PROXY)return;fetch(SIL_API+"?_="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(j){if(j&&SIL_RE.test(j.time||""))applySil(j.time)}).catch(function(){})}
+setInterval(fetchSil,30000);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)fetchSil()});
+function admPost(path,body){return fetch(SIL_API+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){return{st:r.status,j:j}})})}
+function admUI(on){$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";if(on)$("silTime").value=SIL_TIME;syncPresets()}
+function syncPresets(){var v=nt($("silTime").value);document.querySelectorAll("#presets button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===v)})}
+$("silTime").oninput=syncPresets;
+document.querySelectorAll("#presets button").forEach(function(b){b.onclick=function(){$("silTime").value=b.dataset.t;syncPresets()}});
+$("admUnlock").onclick=function(){$("admForm").hidden=false;$("admPw").focus()};
+function admShake(){var b=$("admForm");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake")}
+function admTry(){var pw=$("admPw").value;if(!pw)return;
+admPost("/auth",{password:pw}).then(function(x){
+if(x.st===200){ADM_PW=pw;admUI(true);toast("Розблоковано")}
+else if(x.st===401){$("admPw").value="";admShake();toast("Невірний пароль")}
+else toast("Сервер не налаштовано (код "+x.st+")")}).catch(function(){toast("Немає зв’язку з сервером")})}
+$("admGo").onclick=admTry;
+$("admPw").addEventListener("keydown",function(e){if(e.key==="Enter")admTry()});
+$("admLock").onclick=function(){ADM_PW=null;admUI(false);toast("Заблоковано")};
+$("silSave").onclick=function(){var v=$("silTime").value;if(!v){toast("Вкажіть час");return}v=nt(v);
+admPost("",{password:ADM_PW,time:v}).then(function(x){
+if(x.st===200){applySil(v);addLog("Час хвилини мовчання змінено для всіх: "+v.slice(0,5));toast("Збережено для всіх: "+v.slice(0,5))}
+else if(x.st===401){ADM_PW=null;admUI(false);toast("Пароль не прийнято, розблокуйте знову")}
+else toast("Не вдалося зберегти (код "+x.st+")")}).catch(function(){toast("Немає зв’язку з сервером")})};
+admUI(false);fetchSil();
 
 /* white noise */
 function refreshNoise(){var paused=mode!=="calm"||silActive,st=$("noiseSt");

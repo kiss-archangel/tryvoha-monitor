@@ -12,6 +12,13 @@
 3. **Settings → Variables and Secrets → Add**: тип **Secret**, назва `TRYVOHA_TOKEN`, значення — ваш токен → **Deploy**.
 4. Перевірте в браузері `https://tryvoha.<ваш-піддомен>.workers.dev/proxy/status`: має бути `{"hasToken":true}`.
 
+### 1а. Адмін-доступ до часу хвилини мовчання
+1. **Storage & Databases → KV → Create** namespace (наприклад `tryvoha-sil`).
+2. Worker → **Settings → Bindings → Add → KV namespace**: змінна `SIL_KV`, оберіть створений namespace.
+3. **Settings → Variables and Secrets → Add**: тип **Secret**, назва `ADMIN_PASSWORD`, значення — пароль адміністратора → **Deploy**.
+4. На сайті в блоці «Хвилина мовчання» натисніть «🔓 Розблокувати», введіть пароль і змініть час. Він застосується в усіх відвідувачів протягом ~45 с.
+5. Перевірка: `/proxy/status` має показати `hasAdmin:true` і `hasKv:true`.
+
 ### 2. Сторінка
 1. Відкрийте `index.html`, знайдіть рядок `var PUBLIC_PROXY="";` і впишіть адресу:
    `var PUBLIC_PROXY="https://tryvoha.<ваш-піддомен>.workers.dev/proxy/ukrainealarm";`
