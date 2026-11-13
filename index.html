@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Тривога — монітор</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07080d;--panel:#0e121c;--line:#1b2334;--fg:#f4f7fb;--mut:#8a93a6;--blue:#4cb4ff;--yel:#ffcf40;--red:#ff4d5a;--grn:#3ddc97;--glow:76,180,255;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root[data-mode=alert]{--glow:255,77,90}
+:root[data-mode=drone]{--glow:255,207,64}
+*{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font:15px/1.45 Onest,system-ui,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(700px 420px at 50% -80px,rgba(var(--glow),.18),transparent 70%);transition:background .8s}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.app{position:relative;max-width:1040px;margin:0 auto;padding:14px 16px 40px;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:900px){:root[data-layout=wide] .app{grid-template-columns:minmax(0,480px) minmax(0,1fr);align-items:start;padding-top:28px}:root[data-layout=wide] .back{display:none}:root[data-layout=wide] .gear{display:none!important}:root[data-layout=wide] #monitor,:root[data-layout=wide] #settings{display:grid!important}}
+:root[data-layout=panel] body{background:#030409}
+:root[data-layout=panel] .app{max-width:430px;margin:18px auto;padding:18px 16px 28px;border:1px solid var(--line);border-radius:40px;background:var(--bg);box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 8px #0b0e16}
+@media(max-width:480px){:root[data-layout=panel] .app{margin:0 auto;border:0;border-radius:0;box-shadow:none}}
+@media(max-width:700px){.lay{display:none}}
+.ico.lay:hover{transform:none}
+.col{display:grid;gap:14px;min-width:0}
+.app[data-view=monitor] #settings,.app[data-view=settings] #monitor{display:none}
+header{display:flex;align-items:center;gap:10px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;line-height:1.1;font-size:13px;margin-right:auto}
+.brand svg{width:30px;height:34px}
+.pill{background:#121827;border:1px solid var(--line);color:#b7c0d3;padding:7px 12px;border-radius:99px;font-weight:600;font-size:13px}
+.ico{width:40px;height:40px;border-radius:12px;background:#121827;border:1px solid var(--line);display:grid;place-items:center;transition:transform .2s,background .2s}
+.ico:hover{background:#18203a;transform:rotate(45deg)}
+.hero{position:relative;border-radius:24px;overflow:hidden;border:1px solid var(--line);height:230px;background:#0a0d15}
+.hero canvas{width:100%;height:100%;display:block}
+.hero .tag{position:absolute;left:14px;bottom:12px;font-size:12px;font-weight:600;background:rgba(7,8,13,.6);backdrop-filter:blur(8px);padding:5px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.08)}
+h1{margin:6px 0 0;text-align:center;font-size:clamp(26px,6vw,34px);font-weight:800;letter-spacing:-.02em;transition:color .4s}
+.sub{margin:0;text-align:center;color:var(--mut);max-width:34ch;justify-self:center}
+.seg{display:flex;gap:4px;padding:4px;background:#0c1019;border:1px solid var(--line);border-radius:14px}
+.seg{flex-wrap:wrap}.seg button{flex:1 1 30%;padding:8px 6px;border-radius:10px;background:transparent;color:var(--mut);font-weight:600;font-size:13px;transition:.2s}
+.seg button[aria-pressed=true]{background:#1a2338;color:var(--fg);box-shadow:0 0 0 1px rgba(var(--glow),.45)}
+.card{background:linear-gradient(180deg,#0f1420,#0c101a);border:1px solid var(--line);border-radius:22px;padding:18px}
+.banner{display:flex;gap:14px;align-items:center;transition:border-color .4s,background .4s}
+.banner .dot{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:20px;flex:none;background:rgba(61,220,151,.12)}
+.banner b{display:block}
+.banner small{color:var(--mut)}
+[data-mode=alert] .banner{border-color:#6b1f28;background:linear-gradient(180deg,#26111a,#1a0d13)}
+[data-mode=alert] .banner .dot{background:rgba(255,77,90,.16)}
+[data-mode=drone] .banner{border-color:#6b4b12}
+[data-mode=drone] .banner .dot{background:rgba(255,207,64,.15)}
+.pulse{animation:pl 1.6s ease-in-out infinite}
+@keyframes pl{50%{opacity:.45}}
+.silence{text-align:center}
+.silence h2,.noise h2{margin:0;font-size:17px}
+.silence p{margin:2px 0 0;color:var(--mut);font-size:13px}
+.ring{position:relative;width:176px;height:176px;margin:14px auto 10px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:11;stroke-linecap:round}
+.ring .tr{stroke:#1a2133}
+.ring .pg{stroke:var(--red);transition:stroke-dashoffset .9s linear;filter:drop-shadow(0 0 8px rgba(255,77,90,.5))}
+.ring .t{position:absolute;inset:0;display:grid;place-content:center;font-size:34px;font-weight:800;font-variant-numeric:tabular-nums}
+.ring .t small{display:block;font-size:11px;font-weight:500;color:var(--mut);margin-top:-4px}
+.btn{padding:11px 20px;border-radius:14px;background:#1b2438;font-weight:700;transition:transform .15s,background .2s}
+.btn:hover{background:#243050}.btn:active{transform:scale(.97)}
+.btn.stop{background:#7f1d1d;color:#fecaca}
+.btn.sm{padding:8px 12px;font-size:13px;border-radius:11px}
+.hint{margin-top:12px;font-size:13px;color:var(--blue)}
+.row{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.sw{position:relative;width:46px;height:28px;border-radius:99px;background:#222b40;flex:none;transition:background .25s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+.sw[aria-checked=true]{background:var(--grn)}
+.sw[aria-checked=true]::after{transform:translateX(18px)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:9px;background:#222b40;margin:14px 0 2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 5px rgba(76,180,255,.2)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border:0;border-radius:50%;background:var(--blue)}
+.st{color:var(--mut);font-size:13px}
+.panel h3{margin:0 0 12px;font-size:16px}
+.field{display:grid;gap:6px;margin-bottom:12px}
+.field>span{font-size:13px;color:var(--mut)}
+select,input[type=text],input[type=time],input[type=password]{width:100%;background:#0a0e17;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{padding:7px 12px;border-radius:99px;background:#121827;border:1px solid var(--line);font-size:13px;font-weight:600}
+.chips button[aria-pressed=true]{border-color:var(--blue);color:var(--blue)}
+.log{max-height:190px;overflow:auto;display:grid;gap:6px;font-size:13px}
+.log div{display:flex;gap:10px;padding:8px 10px;border-radius:10px;background:#0a0e17}
+.log time{color:var(--mut);font-variant-numeric:tabular-nums}
+.empty{color:var(--mut)}
+.back{background:none;color:var(--blue);font-weight:600;padding:0 0 10px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,30px);background:#1b2438;border:1px solid var(--line);padding:10px 16px;border-radius:14px;opacity:0;transition:.3s;pointer-events:none;z-index:9}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@keyframes bb{0%,100%{box-shadow:0 0 0 0 rgba(var(--glow),0)}50%{box-shadow:0 0 0 3px rgba(var(--glow),.95),0 0 38px 4px rgba(var(--glow),.55);border-color:rgb(var(--glow))}}
+:root[data-mode=alert] .banner{animation:bb .8s ease-in-out infinite}
+:root[data-mode=drone] .banner{animation:bb 1.2s ease-in-out infinite}
+:root[data-mode=alert] h1{animation:tb .8s steps(2) infinite}
+@keyframes blink{0%,100%{opacity:0}50%{opacity:1}}
+@keyframes tb{50%{opacity:.5}}
+:root[data-theme=light]{--bg:#eef2f8;--panel:#fff;--line:#d8e0ec;--fg:#101828;--mut:#5b6678;--blue:#0b7bd6;--yel:#b87500;--red:#d92d3a;--grn:#16a36a}
+:root[data-theme=light] .pill,:root[data-theme=light] .ico,:root[data-theme=light] .chips button{background:#fff;color:#334155}
+:root[data-theme=light] .ico:hover{background:#e6edf8}
+:root[data-theme=light] .ico svg{stroke:#334155}
+:root[data-theme=light] .card{background:#fff;box-shadow:0 8px 24px rgba(30,50,90,.07)}
+:root[data-theme=light] .seg{background:#e3e9f3}
+:root[data-theme=light] .seg button[aria-pressed=true]{background:#fff;color:var(--fg)}
+:root[data-theme=light] .btn{background:#e3e9f3;color:#101828}
+:root[data-theme=light] .btn:hover{background:#d5deed}
+:root[data-theme=light] .btn.stop{background:#fee2e2;color:#991b1b}
+:root[data-theme=light] .sw,:root[data-theme=light] input[type=range]{background:#cbd5e4}
+:root[data-theme=light] .sw[aria-checked=true]{background:var(--grn)}
+:root[data-theme=light] .ring .tr{stroke:#dde4f0}
+:root[data-theme=light] select,:root[data-theme=light] input[type=text],:root[data-theme=light] input[type=time],:root[data-theme=light] input[type=password]{background:#f5f7fb}
+:root[data-theme=light] .log div{background:#f1f4fa}
+:root[data-theme=light] .toast{background:#fff;color:var(--fg)}
+:root[data-theme=light][data-mode=alert] .banner{border-color:#f2b3b8;background:#fff1f2}
+:root[data-theme=light][data-mode=drone] .banner{border-color:#f0d28a;background:#fffaeb}
+:root[data-theme=light][data-layout=panel] body{background:#dfe5f0}
+:root[data-theme=light][data-layout=panel] .app{box-shadow:0 30px 70px rgba(30,50,90,.18),0 0 0 8px #fff}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}:root[data-mode=alert] .banner,:root[data-mode=drone] .banner{box-shadow:0 0 0 3px rgba(var(--glow),.9)}}
+[hidden]{display:none!important}
+.ldot{width:10px;height:10px;border-radius:50%;background:var(--mut);flex:none}.ldot.ok{background:var(--grn);box-shadow:0 0 8px var(--grn)}.ldot.err{background:var(--red)}
+#livePwRow input{flex:1}
+#pwBox input{flex:1}
+@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}.shake{animation:shk .25s 2}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-view="monitor">
+<section class="col" id="monitor" aria-label="Монітор">
+  <header>
+    <div class="brand"><svg viewBox="0 0 30 34" fill="none" stroke="#ffd34d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2v30M6 6v10a9 9 0 0 0 18 0V6M10 32h10M15 10l-4 5h8z"/></svg>Повітряні<br>Сили України</div>
+    <button class="pill" id="regionPill" data-go="settings">📍 Рівненський р-н</button>
+    <button class="ico" id="themeBtn" aria-label="Тема">☀️</button>
+    <button class="ico lay" id="layoutBtn" aria-label="Режим відображення">⛶</button>
+    <button class="ico gear" data-go="settings" aria-label="Налаштування"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#cdd6e6" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+  <div class="hero"><canvas id="sky"></canvas><span class="tag" id="skyTag">Небо чисте</span></div>
+  <h1 id="title">Загроз не виявлено</h1>
+  <p class="sub" id="subtitle">У вибраному регіоні спокійно. Моніторинг активний.</p>
+  <div class="card" id="liveCard" style="display:grid;gap:12px">
+    <div class="row"><div style="margin-right:auto"><b id="liveT">Живе підключення вимкнено</b><div class="st" id="liveS">Введіть пароль від токена, щоб підключитись до сервера тривог</div></div><span class="ldot" id="ldot"></span></div>
+    <div class="row" id="livePwRow"><input type="password" id="livePw" placeholder="Пароль від токена" autocomplete="off"><button class="btn sm" id="liveGo">▶ Підключити</button></div>
+    <div class="chips"><button class="btn sm" id="liveBack" hidden>↺ Повернутись до живих даних</button><button class="btn sm" id="liveStop" hidden>⏹ Відключити</button></div>
+  </div>
+  <div class="seg" role="group" aria-label="Демо-режим стану">
+    <button data-mode="calm" aria-pressed="true">🟢 Спокійно</button>
+    <button data-mode="drone" aria-pressed="false">🟡 Жовтий рівень</button>
+    <button data-mode="alert" aria-pressed="false">🔴 Ракети</button>
+    <button data-mode="mix" aria-pressed="false">🔴 Ракети+дрони</button>
+    <button data-mode="mass" aria-pressed="false">🔴 Масові дрони</button>
+  </div>
+  <div class="card row banner">
+    <div class="dot" id="bIcon">🛡️</div>
+    <div style="margin-right:auto"><b id="bT">Система моніторингу активна</b><small id="bS">Цілодобове відстеження загроз</small></div>
+  </div>
+  <div class="card silence">
+    <div style="font-size:26px">🕯️</div>
+    <h2>Хвилина мовчання</h2>
+    <p>Зупинимось. Згадаємо. Подякуємо.</p>
+    <div class="ring"><svg viewBox="0 0 176 176"><circle class="tr" cx="88" cy="88" r="78"/><circle class="pg" id="pg" cx="88" cy="88" r="78" stroke-dasharray="490" stroke-dashoffset="490"/></svg><div class="t"><span id="clock">01:00</span><small>хв : сек</small></div></div>
+    <button class="btn" id="silBtn">▶ Запустити зараз</button>
+    <div class="hint" id="silHint">⏰ Щодня о 08:59 (увімкнено)</div>
+  </div>
+  <div class="card noise">
+    <div class="row"><div><h2>Фоновий білий шум</h2><div class="st">Маскує сторонні звуки для спокою</div></div>
+      <button class="sw" id="noiseSw" role="switch" aria-checked="false" aria-label="Білий шум"></button></div>
+    <input type="range" id="noiseVol" min="0" max="100" value="50" aria-label="Гучність шуму">
+    <div class="st" id="noiseSt">Вимкнено</div>
+  </div>
+</section>
+
+<section class="col" id="settings" aria-label="Налаштування">
+  <button class="back" data-go="monitor">← До монітора</button>
+  <div class="card panel"><h3>Регіон</h3>
+    <label class="field"><span>Область</span><select id="oblast"></select></label>
+    <label class="field"><span>Район</span><select id="raion"></select></label>
+    <div class="row field"><span style="color:var(--fg)">Лише повітряні тривоги</span><button class="sw" id="airOnly" role="switch" aria-checked="true" aria-label="Лише повітряні"></button></div>
+    <label class="field"><span id="intLbl">Опитування сервера: 10 с</span><input type="range" id="interval" min="10" max="60" step="5" value="10"></label>
+    <div class="field"><span>Токен API 🔒</span>
+      <input type="text" id="token" value="••••••••••••••••" readonly autocomplete="off" spellcheck="false">
+      <div class="row" id="pwBox" hidden><input type="password" id="tokPw" placeholder="Пароль" autocomplete="off"><button class="btn sm" id="tokOk">OK</button></div>
+      <div class="chips"><button class="btn sm" id="tokUnlock">🔓 Розблокувати</button><button class="btn sm" id="tokSave" hidden>💾 Зберегти токен</button><button class="btn sm" id="tokLock" hidden>🔒 Заблокувати</button><button class="btn sm" id="testToken">Перевірити токен</button></div>
+    </div>
+  </div>
+  <div class="card panel"><h3>Хвилина мовчання</h3>
+    <div class="row field"><span style="color:var(--fg)">Автозапуск щодня</span><button class="sw" id="silOn" role="switch" aria-checked="true" aria-label="Автозапуск"></button></div>
+    <label class="field"><span>Час запуску</span><input type="time" id="silTime" step="1" value="08:59:00"></label>
+    <div class="chips" id="presets" style="margin-bottom:12px"><button data-t="08:59:00">08:59</button><button data-t="09:00:00">09:00</button><button data-t="12:00:00">12:00</button></div>
+    <div class="row" style="margin-bottom:12px"><button class="btn sm" id="silSave">💾 Зберегти час</button><span class="st" id="silSaved"></span></div>
+    <button class="btn sm" id="silTest">🔔 Тест звуку</button>
+  </div>
+  <div class="card panel"><h3>Звуки тривоги</h3>
+    <div class="row field"><span style="color:var(--fg)">Звук при тривозі</span><button class="sw" id="sndOn" role="switch" aria-checked="true" aria-label="Звук"></button></div>
+    <label class="field"><span>Звук червоного рівня</span><select id="redPreset"><option value="mix">Ракетно-дронова загроза (комбінована)</option><option value="mass">Масована дронова загроза</option><option value="alert">Ракетна загроза</option></select></label>
+    <div class="chips" id="sndList"><button data-s="air_yellow_drones">Дрони</button><button data-s="air_red_missiles">Ракети</button><button data-s="air_red_missiles_drones">Ракети+дрони</button><button data-s="air_red_mass_drones">Масові дрони</button><button data-s="allclear">Відбій</button><button data-s="minute_of_silence">Хв. мовчання</button></div><div style="margin-top:12px"><button class="btn sm" id="sndStop">⏹ Зупинити звук</button></div>
+  </div>
+  <div class="card panel"><h3>Діагностика</h3>
+    <div class="chips"><button class="btn sm" id="dbgBtn">🧪 Показати відповідь сервера</button><button class="btn sm" id="dbgCopy">📋 Копіювати</button></div>
+    <pre id="dbg" hidden style="margin:12px 0 0;max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-all;background:#0a0e17;border:1px solid var(--line);border-radius:10px;padding:10px"></pre>
+  </div>
+  <div class="card panel"><div class="row"><h3 style="margin:0">Журнал подій</h3><button class="btn sm" id="clearLog">Очистити</button></div>
+    <div class="log" id="log" style="margin-top:12px"></div>
+  </div>
+</section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+"use strict";
+var $=function(i){return document.getElementById(i)},root=document.documentElement,app=$("app");
+var OBL={"м. Київ":["Київ"],"м. Севастополь":["Севастополь"],
+"Автономна Республіка Крим":["Сімферопольський","Бахчисарайський","Джанкойський","Євпаторійський","Феодосійський","Ялтинський"],
+"Вінницька область":["Вінницький","Гайсинський","Жмеринський","Могилів-Подільський","Тульчинський","Хмільницький"],
+"Волинська область":["Луцький","Ковельський","Володимир-Волинський","Камінь-Каширський"],
+"Дніпропетровська область":["Дніпровський","Кам’янський","Криворізький","Нікопольський","Павлоградський","Самарівський"],
+"Донецька область":["Бахмутський","Волноваський","Горлівський","Донецький","Кальміуський","Краматорський","Маріупольський","Покровський"],
+"Житомирська область":["Житомирський","Бердичівський","Звягельський","Коростенський"],
+"Закарпатська область":["Ужгородський","Берегівський","Мукачівський","Рахівський","Тячівський","Хустський"],
+"Запорізька область":["Запорізький","Бердянський","Василівський","Мелітопольський","Пологівський"],
+"Івано-Франківська область":["Івано-Франківський","Калуський","Коломийський","Косівський","Надвірнянський","Верховинський"],
+"Київська область":["Бучанський","Вишгородський","Бориспільський","Броварський","Білоцерківський","Обухівський","Фастівський"],
+"Кіровоградська область":["Кропивницький","Голованівський","Новоукраїнський","Олександрійський"],
+"Луганська область":["Алчевський","Довжанський","Луганський","Рубіжанський","Сватівський","Старобільський","Щастинський"],
+"Львівська область":["Львівський","Стрийський","Червоноградський","Дрогобицький","Самбірський","Золочівський","Яворівський"],
+"Миколаївська область":["Миколаївський","Баштанський","Вознесенський","Первомайський"],
+"Одеська область":["Одеський","Болградський","Подільський","Березівський","Білгород-Дністровський","Ізмаїльський","Роздільнянський"],
+"Полтавська область":["Полтавський","Кременчуцький","Лубенський","Миргородський"],
+"Рівненська область":["Рівненський","Вараський","Дубенський","Сарненський"],
+"Сумська область":["Сумський","Конотопський","Охтирський","Шосткинський"],
+"Тернопільська область":["Тернопільський","Кременецький","Чортківський"],
+"Харківська область":["Харківський","Берестинський","Богодухівський","Ізюмський","Красноградський","Куп’янський","Лозівський","Чугуївський"],
+"Херсонська область":["Херсонський","Бериславський","Генічеський","Каховський","Скадовський"],
+"Хмельницька область":["Хмельницький","Кам’янець-Подільський","Шепетівський"],
+"Черкаська область":["Черкаський","Звенигородський","Золотоніський","Уманський"],
+"Чернівецька область":["Чернівецький","Вижницький","Дністровський"],
+"Чернігівська область":["Чернігівський","Корюківський","Ніжинський","Новгород-Сіверський","Прилуцький"]};
+Object.keys(OBL).forEach(function(k){if(k.indexOf("м. ")!==0)OBL[k].unshift("Уся область")});
+/* Адреса Cloudflare Worker, напр. https://tryvoha.ВАШ.workers.dev/proxy/ukrainealarm . Порожньо = лише локальний server.py */
+var PUBLIC_PROXY="";
+var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:00",sndOn:true,noiseVol:50,log:[]};
+try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(raw))}catch(e){}
+if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
+delete S.token;
+if(S.ver!==2){S.ver=2;S.oblast="Рівненська область";S.raion="Рівненський"}
+function save(){try{localStorage.setItem("tryvoha",JSON.stringify(S))}catch(e){}}
+var tt;function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(tt);tt=setTimeout(function(){t.classList.remove("on")},2200)}
+function pad(n){return String(n).padStart(2,"0")}
+function sw(el,v){el.setAttribute("aria-checked",v?"true":"false")}
+function tog(el,fn){el.addEventListener("click",function(){var v=el.getAttribute("aria-checked")!=="true";sw(el,v);fn(v)})}
+
+/* navigation */
+document.querySelectorAll("[data-go]").forEach(function(b){b.addEventListener("click",function(){vaultLock();app.dataset.view=b.dataset.go;window.scrollTo(0,0)})});
+
+/* log */
+function addLog(t){S.log.unshift({t:Date.now(),m:t});S.log=S.log.slice(0,50);save();renderLog()}
+function renderLog(){var l=$("log");l.innerHTML="";if(!S.log.length){l.innerHTML='<div class="empty">Подій поки немає. Змініть стан на моніторі, щоб побачити запис.</div>';return}
+S.log.forEach(function(e){var d=new Date(e.t),r=document.createElement("div"),a=document.createElement("time"),b=document.createElement("span");a.textContent=pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds());b.textContent=e.m;r.append(a,b);l.appendChild(r)})}
+$("clearLog").onclick=function(){S.log=[];save();renderLog();toast("Журнал очищено")};
+
+/* audio: усі звуки беруться з папки assets/ */
+var SND_DIR="assets/";
+var FILES={yellow:"air_yellow_drones",red:"air_red_missiles",mix:"air_red_missiles_drones",mass:"air_red_mass_drones",clear:"allclear",silence:"minute_of_silence",noise:"white_noise"};
+var cache={},curSnd=null,noiseEl=null;
+function el(n){if(!cache[n]){var a=new Audio(SND_DIR+n+".mp3");a.preload="auto";cache[n]=a}return cache[n]}
+function stopSnd(){if(curSnd){try{curSnd.pause();curSnd.currentTime=0}catch(e){}curSnd=null}}
+function play(n){stopSnd();var a=el(n);a.loop=false;a.volume=1;try{a.currentTime=0}catch(e){}curSnd=a;var p=a.play();if(p&&p.catch)p.catch(function(){toast("Не вдалося відтворити "+n+".mp3 (перевірте assets/)")});a.onerror=function(){toast("Файл assets/"+n+".mp3 не знайдено")}}
+function startNoise(){if(noiseEl&&!noiseEl.paused)return;noiseEl=el(FILES.noise);noiseEl.loop=true;setVol();var p=noiseEl.play();if(p&&p.catch)p.catch(function(){});noiseEl.onerror=function(){toast("Файл assets/white_noise.mp3 не знайдено")}}
+function stopNoise(){if(noiseEl){try{noiseEl.pause()}catch(e){}}}
+function setVol(){if(noiseEl)noiseEl.volume=Math.min(1,S.noiseVol/100)}
+function unlock(){Object.keys(FILES).forEach(function(k){el(FILES[k])});removeEventListener("pointerdown",unlock)}
+addEventListener("pointerdown",unlock);
+
+/* state */
+var demo=false,mode="calm",silActive=false,silTimer=null,noiseOn=false;
+var TXT={calm:["Загроз не виявлено","У вибраному регіоні спокійно. Моніторинг активний.","Небо чисте","🛡️","Система моніторингу активна","Цілодобове відстеження загроз"],
+drone:["Повітряна тривога: жовтий рівень","Підвищена загроза у вашому регіоні. Будьте уважні.","Жовтий рівень","🟡","Повітряна тривога: жовтий рівень","Стежте за оповіщеннями та будьте готові до укриття"],
+alert:["Ракетна небезпека!","Зафіксовано загрозу ракетного удару у вашому регіоні.","Повітряна тривога","🚨","Повітряну тривогу ввімкнено","Прямуйте в укриття та дотримуйтесь правил"],
+mix:["Ракети та дрони!","Одночасна загроза ракетного удару й дронів у вашому регіоні.","Ракети + дрони","🚨","Повітряну тривогу ввімкнено","Прямуйте в укриття та дотримуйтесь правил"],
+mass:["Масована атака дронів!","Зафіксовано масовий рух ворожих дронів у вашому регіоні.","Масові дрони","🚨","Повітряну тривогу ввімкнено","Прямуйте в укриття та дотримуйтесь правил"]};
+var BASE={calm:"calm",drone:"drone",alert:"alert",mix:"alert",mass:"alert"};
+var MSND={drone:"yellow",alert:"red",mix:"mix",mass:"mass"};
+var COL={calm:"var(--fg)",drone:"var(--yel)",alert:"var(--red)"};
+function setMode(m,log){var prev=mode;mode=m;var bm=BASE[m];root.dataset.mode=bm;var t=TXT[m];$("title").textContent=t[0];$("title").style.color=COL[bm];$("subtitle").textContent=t[1];$("skyTag").textContent=t[2];$("bIcon").textContent=t[3];$("bT").textContent=t[4];$("bS").textContent=t[5];
+$("bIcon").classList.toggle("pulse",m!=="calm");
+document.querySelectorAll(".seg button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.mode===m)});
+if(log)addLog(t[0].replace("!","")+" — "+S.oblast);
+if(log&&S.sndOn){if(m!=="calm")play(FILES[MSND[m]]);else if(prev!=="calm")play(FILES.clear)}
+if(m!=="calm"&&log&&navigator.vibrate)navigator.vibrate([200,100,200]);
+titleBlink(BASE[m]);
+refreshNoise()}
+document.querySelectorAll(".seg button").forEach(function(b){b.addEventListener("click",function(){demo=true;if(liveOn)$("liveBack").hidden=false;setMode(b.dataset.mode,true)})});
+
+/* silence minute */
+var C=2*Math.PI*78;
+var silTotal=60,silT0=0;
+function silAudio(){return el(FILES.silence)}
+function silDur(){var a=silAudio();return(isFinite(a.duration)&&a.duration>0)?a.duration:60}
+function silElapsed(){var a=silAudio();if(a.paused||a.error)return Math.min((Date.now()-silT0)/1000,silTotal);return a.currentTime}
+function fmt(t){t=Math.max(0,Math.ceil(t));return pad(Math.floor(t/60))+":"+pad(t%60)}
+function drawSil(){var tot=silActive?silTotal:silDur(),ep=silActive?silElapsed():0;
+$("pg").style.strokeDashoffset=String(C*(1-(silActive?Math.min(1,ep/tot):.29)));
+$("clock").textContent=fmt(tot-ep);
+var b=$("silBtn");b.textContent=silActive?"⏹ Зупинити":"▶ Запустити зараз";b.classList.toggle("stop",silActive);
+var h=$("silHint");if(silActive){h.textContent="🕯️ Триває вшанування пам’яті полеглих захисників…";h.style.color="var(--red)"}else if(S.silOn){h.textContent="⏰ Щодня о "+S.silTime.slice(0,5)+" (увімкнено)";h.style.color="var(--blue)"}else{h.textContent="⚪ Автозапуск вимкнено";h.style.color="var(--mut)"}}
+function startSil(auto){if(silActive)return;silActive=true;silT0=Date.now();silTotal=silDur();var a=silAudio();play(FILES.silence);
+a.onloadedmetadata=function(){if(silActive)silTotal=silDur()};a.onended=function(){if(silActive)stopSil(true)};
+addLog(auto?"Автозапуск хвилини мовчання":"Хвилину мовчання запущено");refreshNoise();drawSil();
+silTimer=setInterval(function(){if(silElapsed()>=silTotal-0.05&&(silAudio().paused||silAudio().error)){stopSil(true)}else drawSil()},250)}
+function stopSil(done){if(!silActive)return;clearInterval(silTimer);silActive=false;if(!done)stopSnd();silAudio().onended=null;addLog(done?"Хвилину мовчання завершено":"Хвилину мовчання зупинено");refreshNoise();drawSil()}
+$("silBtn").onclick=function(){silActive?stopSil(false):startSil(false)};
+silAudio().addEventListener("loadedmetadata",function(){if(!silActive)drawSil()});
+var lastFire="";setInterval(function(){if(!S.silOn||silActive)return;var d=new Date(),n=pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds());if(n===S.silTime&&lastFire!==n){lastFire=n;startSil(true)}},500);
+
+/* white noise */
+function refreshNoise(){var paused=mode!=="calm"||silActive,st=$("noiseSt");
+if(!noiseOn){st.textContent="Вимкнено";st.style.color="var(--mut)";stopNoise();return}
+if(paused){st.textContent="⏸ Автопауза під час тривоги або хвилини мовчання";st.style.color="var(--yel)";stopNoise()}else{st.textContent="🟢 Грає у фоні";st.style.color="var(--grn)";startNoise()}}
+tog($("noiseSw"),function(v){noiseOn=v;refreshNoise();addLog(v?"Білий шум увімкнено":"Білий шум вимкнено")});
+$("noiseVol").addEventListener("input",function(e){S.noiseVol=+e.target.value;setVol();save()});
+
+/* settings */
+var ob=$("oblast"),ra=$("raion");
+Object.keys(OBL).forEach(function(k){ob.add(new Option(k,k))});
+function fillRaion(){ra.innerHTML="";OBL[ob.value].forEach(function(r){ra.add(new Option(r,r))});if(OBL[ob.value].indexOf(S.raion)>-1)ra.value=S.raion;else S.raion=ra.value}
+function pill(){$("regionPill").textContent="📍 "+(ob.value.indexOf("м. ")===0||ra.value==="Уся область"?ob.value:ra.value+" р-н")}
+ob.onchange=function(){S.oblast=ob.value;S.raion="";fillRaion();S.raion=ra.value;pill();save();toast("Регіон: "+S.oblast)};
+ra.onchange=function(){S.raion=ra.value;pill();save();toast("Район: "+S.raion)};
+tog($("airOnly"),function(v){S.air=v;save()});
+/* захищений токен (AES-GCM, ключ з пароля) */
+var TOKEN=null,TOKEN_PW=null,MASK="••••••••••••••••";
+function b64(u){var t="";u.forEach(function(c){t+=String.fromCharCode(c)});return btoa(t)}
+function unb64(t){var q=atob(t),u=new Uint8Array(q.length);for(var i=0;i<q.length;i++)u[i]=q.charCodeAt(i);return u}
+function haveCrypto(){if(window.crypto&&crypto.subtle)return true;toast("Браузер не підтримує шифрування (потрібен https або localhost)");return false}
+function deriveKey(pw,salt){return crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]).then(function(k){return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:150000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])})}
+function decTok(pw,blob){var u=unb64(blob);return deriveKey(pw,u.slice(0,16)).then(function(k){return crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(16,28)},k,u.slice(28))}).then(function(b){return new TextDecoder().decode(b)})}
+function encTok(pw,txt){var salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));return deriveKey(pw,salt).then(function(k){return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},k,new TextEncoder().encode(txt))}).then(function(ct){var c=new Uint8Array(ct),o=new Uint8Array(28+c.length);o.set(salt,0);o.set(iv,16);o.set(c,28);return b64(o)})}
+function vaultUI(open){var t=$("token");t.value=open?TOKEN:MASK;t.readOnly=!open;t.type=open?"text":"password";if(!open)t.type="text";$("tokUnlock").hidden=open;$("tokSave").hidden=!open;$("tokLock").hidden=!open;$("pwBox").hidden=true;$("tokPw").value=""}
+function vaultLock(){if(TOKEN===null)return;TOKEN=null;TOKEN_PW=null;vaultUI(false)}
+$("tokUnlock").onclick=function(){if(!haveCrypto())return;$("pwBox").hidden=false;$("tokPw").focus()};
+function tryUnlock(){var pw=$("tokPw").value;if(!pw||!haveCrypto())return;decTok(pw,S.tokEnc).then(function(t){TOKEN=t;TOKEN_PW=pw;vaultUI(true);addLog("Токен розблоковано");toast("Токен розблоковано")}).catch(function(){$("tokPw").value="";var b=$("pwBox");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake");toast("Невірний пароль")})}
+$("tokOk").onclick=tryUnlock;
+$("tokPw").addEventListener("keydown",function(e){if(e.key==="Enter")tryUnlock()});
+$("tokLock").onclick=function(){vaultLock();toast("Токен заблоковано")};
+$("tokSave").onclick=function(){var v=$("token").value.trim();if(!v){toast("Токен порожній");return}encTok(TOKEN_PW,v).then(function(b){S.tokEnc=b;TOKEN=v;if(LIVE_TOKEN!==null)LIVE_TOKEN=v;save();addLog("Токен змінено");toast("Токен збережено")})};
+tog($("silOn"),function(v){S.silOn=v;save();drawSil()});
+function normT(v){return v.length===5?v+":00":v}
+function savedLbl(){var d=normT($("silTime").value)!==S.silTime;$("silSaved").textContent=d?"Є незбережені зміни":"Збережено: "+S.silTime.slice(0,5);$("silSaved").style.color=d?"var(--yel)":"var(--grn)"}
+function syncPresets(){var v=normT($("silTime").value);document.querySelectorAll("#presets button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===v)})}
+$("silTime").oninput=function(){syncPresets();savedLbl()};
+document.querySelectorAll("#presets button").forEach(function(b){b.onclick=function(){$("silTime").value=b.dataset.t;syncPresets();savedLbl()}});
+$("silSave").onclick=function(){var v=normT($("silTime").value);if(!$("silTime").value){toast("Вкажіть час");return}S.silTime=v;lastFire="";save();syncPresets();savedLbl();drawSil();addLog("Час хвилини мовчання збережено: "+v.slice(0,5));toast("Збережено: "+v.slice(0,5))};
+$("silTest").onclick=function(){play(FILES.silence)};
+tog($("sndOn"),function(v){S.sndOn=v;save()});
+document.querySelectorAll("#sndList button").forEach(function(b){b.onclick=function(){play(b.dataset.s)}});
+$("sndStop").onclick=stopSnd;
+
+/* живе підключення до alerts.in.ua */
+var LIVE_TOKEN=null,liveOn=false,liveTimer=null,liveMode="calm",liveBusy=false,liveCount=0;
+function nrm(x){return String(x||"").toLowerCase().replace(/[’'`ʼ]/g,"'").replace(/\s+/g," ").trim()}
+function rKey(r){r=nrm(r).replace(/ район$/,"");if(r==="володимир-волинський")r="володимирський";return r}
+function matchAlert(a){var ob=nrm(S.oblast);
+if(S.oblast.indexOf("м. ")===0)return nrm(a.location_oblast)===ob||nrm(a.location_title)===ob;
+if(nrm(a.location_oblast)!==ob&&nrm(a.location_title)!==ob)return false;
+if(a.location_type==="oblast"||S.raion==="Уся область")return true;
+var rr=a.location_raion||(a.location_type==="raion"?a.location_title:"");
+return !!rr&&rKey(rr)===rKey(S.raion)}
+function modeFrom(list){var rank={calm:0,drone:1,alert:2,mass:3,mix:4},best="calm";
+list.forEach(function(a){if(S.air&&a.alert_type!=="air_raid")return;
+var th=(a.threats||[]).map(function(t){return nrm(t.threat_type)}).join(" "),dr=/shahed|drone|uav|дрон|шахед|бпла/.test(th),ms=/missile|ballistic|cruise|ракет|kinzhal|кинджал/.test(th),m;
+if(a.alert_level==="yellow")m="drone";else if(dr&&ms)m="mix";else if(dr)m="mass";else m="alert";
+if(rank[m]>rank[best])best=m});return best}
+function apiGet(path,token){var h={},ctl=new AbortController(),to=setTimeout(function(){ctl.abort()},12000),prov=S.provider==="alerts"?"alerts":"ukrainealarm";
+var local=/^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[^.]+|[^.]+\.local|[^.]+\.lan)$/i.test(location.hostname)&&location.protocol.indexOf("http")===0;
+var direct=prov==="alerts"?"https://api.alerts.in.ua":"https://api.ukrainealarm.com";
+var base=(S.proxy||(local?location.origin+"/proxy/"+prov:direct)).replace(/\/+$/,"");
+if(token)h.Authorization=prov==="alerts"?"Bearer "+token:token;
+return fetch(base+path,{headers:h,signal:ctl.signal,cache:"no-store"}).then(function(r){clearTimeout(to);
+if(r.status===401||r.status===403)throw{code:"auth"};if(r.status===429)throw{code:"rate"};if(!r.ok)throw{code:"http",st:r.status};return r.json()},function(e){clearTimeout(to);throw{code:"net"}})}
+var lastDbg=null,REG=null,targetId=null;
+/* ukrainealarm: структура регіонів /regions, статус регіону /alerts/{id}, рівень з activeAlertLevels */
+function resolveTarget(){targetId=null;if(!REG)return;var st=REG.filter(function(x){return x.regionName===S.oblast})[0];if(!st)return;targetId=st.regionId;
+if(S.raion&&S.raion!=="Уся область"){var c=(st.regionChildIds||[]).filter(function(r){return r.regionName===S.raion})[0];if(c)targetId=c.regionId}}
+function applyRegions(states){REG=states;var no={};states.forEach(function(st){if(!st.regionName)return;var l=["Уся область"];(st.regionChildIds||[]).forEach(function(c){if(c.regionName)l.push(c.regionName)});no[st.regionName]=l});
+var keys=Object.keys(no);if(!keys.length)return;OBL=no;ob.innerHTML="";keys.forEach(function(k){ob.add(new Option(k,k))});
+if(!(S.oblast in OBL)){S.oblast=keys.filter(function(k){return nrm(k)===nrm(S.oblast)})[0]||keys[0]}
+ob.value=S.oblast;var lst=OBL[S.oblast],hit=lst.filter(function(r){return r!=="Уся область"&&rKey(r)===rKey(S.raion)})[0];
+S.raion=hit||(lst.indexOf(S.raion)>-1?S.raion:"Уся область");fillRaion();pill();save();resolveTarget()}
+function ensureRegions(token){if(REG&&targetId)return Promise.resolve();
+return apiGet("/api/v3/regions",token).then(function(d){var st=Array.isArray(d)?d:(d&&d.states)||[];applyRegions(st);if(!targetId)throw{code:"region"}})}
+function uaLevel(alerts){var red=false,yel=false;alerts.forEach(function(a){if(a.type!=="AIR")return;(a.activeAlertLevels||[]).forEach(function(l){var v=String(typeof l==="string"?l:(l&&(l.alertLevel||l.level))||"").toUpperCase();if(v==="RED")red=true;else if(v==="YELLOW")yel=true})});return red?"red":(yel?"yellow":"red")}
+function redMode(){return({mix:"mix",mass:"mass",alert:"alert"})[S.redPreset]||"mix"}
+function collectIds(n,set){if(!n)return;if(n.regionId)set[n.regionId]=1;(n.regionChildIds||[]).forEach(function(c){collectIds(c,set)})}
+function uaFetch(token){var whole=false,total=0,skipped=[];
+return ensureRegions(token).then(function(){var st=REG.filter(function(x){return x.regionName===S.oblast})[0];
+whole=(!S.raion||S.raion==="Уся область")&&!!st&&(st.regionChildIds||[]).length>0;
+if(!whole)return apiGet("/api/v3/alerts/"+targetId,token).then(function(d){return[Array.isArray(d)?(d[0]||{}):(d||{})]});
+var ids={};collectIds(st,ids);
+return apiGet("/api/v3/alerts",token).then(function(list){var arr=Array.isArray(list)?list:[];total=arr.length;
+skipped=arr.filter(function(r){return!ids[r.regionId]}).slice(0,15).map(function(r){return r.regionName+" ("+r.regionType+")"});
+return arr.filter(function(r){return ids[r.regionId]})})
+}).then(function(entries){var act=[];entries.forEach(function(e){(e.activeAlerts||[]).forEach(function(a){act.push(a)})});
+var rel=S.air?act.filter(function(a){return a.type==="AIR"}):act,lvl=rel.length?uaLevel(act):null;
+lastDbg={provider:"ukrainealarm",time:new Date().toISOString(),targetId:targetId,wholeOblast:whole,level:lvl,totalRegionsWithAlerts:total,matched:entries.map(function(e){return e.regionName+" ("+e.regionType+")"}),notMine:skipped,entries:entries};
+return{count:rel.length,mode:!rel.length?"calm":(lvl==="yellow"?"drone":redMode())}})}
+function alertsFetch(token){return apiGet("/v1/alerts/active.json",token).then(function(j){var l=(j.alerts||[]).filter(matchAlert);lastDbg={provider:"alerts",time:new Date().toISOString(),matches:l};return{count:l.length,mode:modeFrom(l)}})}
+function fetchLive(token){return S.provider==="alerts"?alertsFetch(token):uaFetch(token)}
+function errMsg(e){var c=e&&e.code;if(c==="auth")return"Токен відхилено сервером (401/403)";if(c==="rate")return"Забагато запитів (429), збільште інтервал";if(c==="region")return"Не вдалося визначити ваш регіон у списку сервісу. Оберіть область і район у налаштуваннях";if(c==="http")return"Помилка сервера: "+e.st;return"Немає зв’язку або браузер блокує запит (CORS). Запустіть server.py і відкрийте http://localhost:8000"}
+function liveUI(ok,msg){var d=$("ldot");d.className="ldot "+(ok?"ok":"err");
+$("liveT").textContent=ok?"Онлайн · оновлено "+(function(n){return pad(n.getHours())+":"+pad(n.getMinutes())+":"+pad(n.getSeconds())})(new Date()):"Помилка підключення";
+$("liveS").textContent=ok?("Регіон: "+(S.oblast.indexOf("м. ")===0||S.raion==="Уся область"?S.oblast:S.raion+" р-н")+" · активних тривог: "+liveCount):msg}
+function poll(){if(!liveOn||liveBusy)return;liveBusy=true;
+fetchLive(LIVE_TOKEN).then(function(cl){liveCount=cl.count;liveMode=cl.mode;liveUI(true);if(!demo&&liveMode!==mode)setMode(liveMode,true)})
+.catch(function(e){liveUI(false,errMsg(e));if(e&&e.code==="auth"){addLog("Токен відхилено сервером");stopLive(true)}})
+.then(function(){liveBusy=false})}
+function startLive(){if(liveOn)return;liveOn=true;demo=false;$("livePwRow").hidden=true;$("liveStop").hidden=false;$("liveBack").hidden=true;
+$("liveT").textContent="Підключення…";$("liveS").textContent="Запит до сервера тривог";$("ldot").className="ldot";
+addLog("Живе підключення увімкнено");poll();clearInterval(liveTimer);liveTimer=setInterval(poll,Math.max(10,S.interval)*1000)}
+function stopLive(keepMsg){liveOn=false;clearInterval(liveTimer);LIVE_TOKEN=null;$("livePwRow").hidden=false;$("liveStop").hidden=true;$("liveBack").hidden=true;$("livePw").value="";
+if(!keepMsg){$("ldot").className="ldot";$("liveT").textContent="Живе підключення вимкнено";$("liveS").textContent="Введіть пароль від токена, щоб підключитись до сервера тривог";addLog("Живе підключення вимкнено")}}
+function liveConnect(){var pw=$("livePw").value;
+if(!pw){if(S.proxy){LIVE_TOKEN=null;startLive()}else toast("Введіть пароль");return}
+if(!haveCrypto())return;
+decTok(pw,S.tokEnc).then(function(t){LIVE_TOKEN=t;startLive()}).catch(function(){$("livePw").value="";var b=$("livePwRow");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake");toast("Невірний пароль")})}
+function autoLive(){if(liveOn)return;if(S.proxy){startLive();return}
+var local=/^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[^.]+|[^.]+\.local|[^.]+\.lan)$/i.test(location.hostname)&&location.protocol.indexOf("http")===0;
+if(local)fetch("/proxy/status",{cache:"no-store"}).then(function(r){return r.json()}).then(function(j){if(j&&j.hasToken)startLive()}).catch(function(){})}
+$("dbgBtn").onclick=function(){var d=$("dbg");d.hidden=false;d.textContent=lastDbg?JSON.stringify(lastDbg,null,1):"Ще немає даних. Підключіться до живих даних."};
+$("dbgCopy").onclick=function(){var t=lastDbg?JSON.stringify(lastDbg,null,1):"";if(!t){toast("Ще немає даних");return}try{navigator.clipboard.writeText(t).then(function(){toast("Скопійовано")},function(){toast("Не вдалося скопіювати")})}catch(e){toast("Не вдалося скопіювати")}};
+$("liveGo").onclick=liveConnect;
+$("livePw").addEventListener("keydown",function(e){if(e.key==="Enter")liveConnect()});
+$("liveStop").onclick=function(){stopLive(false)};
+$("liveBack").onclick=function(){demo=false;$("liveBack").hidden=true;if(mode!==liveMode)setMode(liveMode,true);toast("Показано живі дані")};
+$("interval").oninput=function(e){S.interval=Math.max(10,+e.target.value);$("intLbl").textContent="Опитування сервера: "+S.interval+" с";save();if(liveOn){clearInterval(liveTimer);liveTimer=setInterval(poll,S.interval*1000)}};
+$("testToken").onclick=function(){if(TOKEN===null&&!S.proxy){toast("Спершу розблокуйте токен паролем");return}var t=TOKEN;toast("Перевірка підключення…");
+(S.provider==="alerts"?apiGet("/v1/alerts/active.json",t):apiGet("/api/v3/regions",t)).then(function(d){var st=Array.isArray(d)?d:(d&&d.states);toast("Токен дійсний"+(st?". Отримано областей: "+st.length:""));addLog("Перевірка токена: успішно");if(S.provider!=="alerts"&&st)applyRegions(st)}).catch(function(e){toast(errMsg(e));addLog("Перевірка токена: "+errMsg(e))})};
+var _oc=ob.onchange,_rc=ra.onchange;ob.onchange=function(){_oc.apply(this,arguments);resolveTarget()};ra.onchange=function(){_rc.apply(this,arguments);resolveTarget()};
+$("redPreset").value=S.redPreset;$("redPreset").onchange=function(e){S.redPreset=e.target.value;save();toast("Звук червоного рівня змінено")};
+
+/* sky canvas */
+var cv=$("sky"),g=cv.getContext("2d"),W=0,H=0,stars=[],dpr=Math.min(devicePixelRatio||1,2);
+function size(){var r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*dpr;cv.height=H*dpr;g.setTransform(dpr,0,0,dpr,0,0);stars=[];for(var i=0;i<70;i++)stars.push({x:Math.random()*W,y:Math.random()*H*.7,r:Math.random()*1.3+.3,p:Math.random()*6})}
+addEventListener("resize",size);
+var skyline=[];
+function drawSky(t){
+var bm=BASE[mode],top={calm:"#0b1a3a",drone:"#2a1d0b",alert:"#3a0d16"}[bm],bot={calm:"#1a3d6e",drone:"#6b4410",alert:"#8a1c28"}[bm];
+var gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,top);gr.addColorStop(1,bot);g.fillStyle=gr;g.fillRect(0,0,W,H);
+stars.forEach(function(s){g.globalAlpha=.4+.6*Math.abs(Math.sin(t/1200+s.p));g.fillStyle="#fff";g.beginPath();g.arc(s.x,s.y,s.r,0,6.3);g.fill()});g.globalAlpha=1;
+if(mode!=="calm"&&mode!=="drone")drawDrones(t);if(false){var n=mode==="alert"?1:3;for(var i=0;i<n;i++){var sp=mode==="alert"?.22:.06,x=((t*sp+i*W/n*1.3)%(W+120))-60,y=(mode==="alert"?H*.25+Math.sin(t/900)*8:H*.28+i*26)+(mode==="alert"?x*.08:0);
+g.save();g.translate(x,y);g.fillStyle="#05060a";if(mode==="alert"){g.rotate(.08);g.fillRect(-18,-3,36,6);g.beginPath();g.moveTo(18,-3);g.lineTo(28,0);g.lineTo(18,3);g.fill();g.fillStyle="rgba(255,150,60,.8)";g.beginPath();g.moveTo(-18,-2);g.lineTo(-34-Math.random()*8,0);g.lineTo(-18,2);g.fill()}else{g.beginPath();g.moveTo(0,-8);g.lineTo(16,6);g.lineTo(0,2);g.lineTo(-16,6);g.closePath();g.fill();g.fillStyle="#ff4d5a";g.globalAlpha=Math.abs(Math.sin(t/300+i));g.fillRect(-1,-1,3,3)}g.restore()}}
+g.fillStyle="#06070b";g.beginPath();g.moveTo(0,H);var x=0,k=0;while(x<=W){var hh=18+((Math.sin(k*1.7)+1)*14)+(k%5===0?22:0);g.lineTo(x,H-hh);g.lineTo(x+14,H-hh);x+=14;k++}g.lineTo(W,H);g.fill();
+g.fillStyle="#ffd34d";g.fillRect(0,H-3,W/2,3);g.fillStyle="#3b8cff";g.fillRect(W/2,H-3,W/2,3);
+requestAnimationFrame(drawSky)}
+if(matchMedia("(prefers-reduced-motion:reduce)").matches){size();drawSky(0);}else{size();requestAnimationFrame(drawSky)}
+
+/* drones */
+function drone(x,y,s,t,k){
+g.save();g.translate(x,y);g.scale(s,s);g.rotate(Math.sin(t/700+k)*.04);
+var gl=g.createRadialGradient(-44,0,1,-44,0,24);gl.addColorStop(0,"rgba(255,170,70,.9)");gl.addColorStop(1,"rgba(255,80,40,0)");g.fillStyle=gl;g.fillRect(-72,-26,56,52);
+g.fillStyle="#04050a";g.strokeStyle="rgba(255,255,255,.35)";g.lineWidth=1;
+g.beginPath();g.moveTo(40,0);g.quadraticCurveTo(24,-6,-30,-4);g.lineTo(-38,-3);g.lineTo(-38,3);g.lineTo(-30,4);g.quadraticCurveTo(24,6,40,0);g.fill();g.stroke();
+g.beginPath();g.moveTo(16,2);g.lineTo(-34,24);g.lineTo(-40,22);g.lineTo(-22,2);g.closePath();g.fill();g.stroke();
+g.beginPath();g.moveTo(16,-2);g.lineTo(-34,-24);g.lineTo(-40,-22);g.lineTo(-22,-2);g.closePath();g.fill();g.stroke();
+g.fillRect(-42,20,8,5);g.fillRect(-42,-25,8,5);
+g.fillStyle="rgba(210,215,225,.28)";g.beginPath();g.ellipse(-41,0,3,13,0,0,6.3);g.fill();
+g.restore();
+g.strokeStyle="rgba(255,77,90,"+(.45+.4*Math.abs(Math.sin(t/350+k)))+")";g.lineWidth=1.5;g.setLineDash([5,5]);g.beginPath();g.arc(x,y,48*s,0,6.3);g.stroke();g.setLineDash([]);
+g.fillStyle="#ffb3b9";g.font="600 11px Onest,sans-serif";g.textAlign="center";g.fillText("Дрон",x,y-54*s);}
+function drawDrones(t){
+var cfg=BASE[mode]==="alert"?[[0,.34,1.5,.05],[.45,.2,.9,.07],[.75,.46,.7,.06]]:[[0,.34,1.7,.035]];
+cfg.forEach(function(c,k){var span=W+260,x=((t*c[3]+c[0]*span)%span)-130,y=H*c[1]+Math.sin(t/800+k*2)*7;drone(x,y,c[2]*Math.min(1,W/420+.25),t,k)})}
+
+/* layout */
+var LB=$("layoutBtn");
+function setLayout(l,user){
+root.dataset.layout=l;S.layout=l;save();
+LB.textContent=l==="wide"?"📱":"⛶";
+var lab=l==="wide"?"Показати як панель на телефоні":"Показати на весь екран";LB.title=lab;LB.setAttribute("aria-label",lab);
+if(user){try{if(l==="wide"&&!document.fullscreenElement&&document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().catch(function(){})}else if(l==="panel"&&document.fullscreenElement){document.exitFullscreen().catch(function(){})}}catch(e){}toast(l==="wide"?"Режим на весь екран":"Режим панелі")}
+requestAnimationFrame(size)}
+LB.onclick=function(){setLayout(root.dataset.layout==="wide"?"panel":"wide",true)};
+
+/* init */
+setLayout(S.layout||(innerWidth>=900?"wide":"panel"),false);
+var TB=$("themeBtn"),tbT=null;
+function setTheme(t,user){root.dataset.theme=t;S.theme=t;save();TB.textContent=t==="light"?"🌙":"☀️";var l=t==="light"?"Увімкнути темну тему":"Увімкнути світлу тему";TB.title=l;TB.setAttribute("aria-label",l);if(user)toast(t==="light"?"Світла тема":"Темна тема")}
+TB.onclick=function(){setTheme(root.dataset.theme==="light"?"dark":"light",true)};
+setTheme(S.theme||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"),false);
+function titleBlink(m){clearInterval(tbT);var base="Тривога — монітор";if(m==="calm"){document.title=base;return}var a=m==="alert"?"🚨 Повітряна тривога!":"🟡 Повітряна тривога (жовтий рівень)",f=false;document.title=a;tbT=setInterval(function(){f=!f;document.title=f?base:a},900)}
+ob.value=S.oblast in OBL?S.oblast:"Рівненська область";fillRaion();pill();
+sw($("airOnly"),S.air);$("interval").value=S.interval;$("intLbl").textContent="Опитування сервера: "+S.interval+" с";vaultUI(false);save();
+sw($("silOn"),S.silOn);$("silTime").value=S.silTime;syncPresets();savedLbl();sw($("sndOn"),S.sndOn);$("noiseVol").value=S.noiseVol;
+renderLog();setMode("calm",false);drawSil();autoLive();
+})();
+</script>
+</body>
+</html>
