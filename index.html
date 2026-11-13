@@ -491,7 +491,10 @@ function titleBlink(m){clearInterval(tbT);var base="Тривога — моні�
 ob.value=S.oblast in OBL?S.oblast:"Рівненська область";fillRaion();pill();
 sw($("airOnly"),S.air);$("interval").value=S.interval;$("intLbl").textContent="Опитування сервера: "+S.interval+" с";vaultUI(false);save();
 sw($("silOn"),S.silOn);$("silTime").value=S.silTime;syncPresets();savedLbl();sw($("sndOn"),S.sndOn);$("noiseVol").value=S.noiseVol;
-renderLog();setMode("calm",false);drawSil();autoLive();
+renderLog();setMode("calm",false);drawSil();noiseOn=true;sw($("noiseSw"),true);refreshNoise();
+/* браузер дозволяє звук лише після першої дії користувача: повторюємо запуск шуму при першому кліку/дотику/клавіші */
+["click","touchend","keydown","mousedown"].forEach(function(ev){document.addEventListener(ev,function(){if(noiseOn)refreshNoise()},{once:true,capture:true})});
+autoLive();
 })();
 </script>
 </body>
