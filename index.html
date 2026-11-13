@@ -243,7 +243,7 @@ var S={oblast:"Рівненська область",raion:"Рівненськи�
 try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(raw))}catch(e){}
 if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
 delete S.token;
-if(S.ver!==2){S.ver=2;S.oblast="Рівненська область";S.raion="Рівненський"}
+if(S.ver!==3){S.ver=3;S.oblast="Рівненська область";S.raion="Рівненський"}
 function save(){try{localStorage.setItem("tryvoha",JSON.stringify(S))}catch(e){}}
 var tt;function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(tt);tt=setTimeout(function(){t.classList.remove("on")},2200)}
 function pad(n){return String(n).padStart(2,"0")}
@@ -386,7 +386,7 @@ function applyRegions(states){REG=states;var no={};states.forEach(function(st){i
 var keys=Object.keys(no);if(!keys.length)return;OBL=no;ob.innerHTML="";keys.forEach(function(k){ob.add(new Option(k,k))});
 if(!(S.oblast in OBL)){S.oblast=keys.filter(function(k){return nrm(k)===nrm(S.oblast)})[0]||keys[0]}
 ob.value=S.oblast;var lst=OBL[S.oblast],hit=lst.filter(function(r){return r!=="Уся область"&&rKey(r)===rKey(S.raion)})[0];
-S.raion=hit||(lst.indexOf(S.raion)>-1?S.raion:"Уся область");fillRaion();pill();save();resolveTarget()}
+var rv=S.oblast==="Рівненська область"?lst.filter(function(r){return rKey(r)==="рівненський"})[0]:null;S.raion=hit||(lst.indexOf(S.raion)>-1?S.raion:(rv||"Уся область"));fillRaion();pill();save();resolveTarget()}
 function ensureRegions(token){if(REG&&targetId)return Promise.resolve();
 return apiGet("/api/v3/regions",token).then(function(d){var st=Array.isArray(d)?d:(d&&d.states)||[];applyRegions(st);if(!targetId)throw{code:"region"}})}
 function uaLevel(alerts){var red=false,yel=false;alerts.forEach(function(a){if(a.type!=="AIR")return;(a.activeAlertLevels||[]).forEach(function(l){var v=String(typeof l==="string"?l:(l&&(l.alertLevel||l.level))||"").toUpperCase();if(v==="RED")red=true;else if(v==="YELLOW")yel=true})});return red?"red":(yel?"yellow":"red")}
