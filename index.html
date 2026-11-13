@@ -185,9 +185,8 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
   </div>
   <div class="card panel"><h3>Хвилина мовчання</h3>
     <div class="row field"><span style="color:var(--fg)">Автозапуск щодня</span><button class="sw" id="silOn" role="switch" aria-checked="true" aria-label="Автозапуск"></button></div>
-    <label class="field"><span>Час запуску</span><input type="time" id="silTime" step="1" value="08:59:00"></label>
-    <div class="chips" id="presets" style="margin-bottom:12px"><button data-t="08:59:00">08:59</button><button data-t="09:00:00">09:00</button><button data-t="12:00:00">12:00</button></div>
-    <div class="row" style="margin-bottom:12px"><button class="btn sm" id="silSave">💾 Зберегти час</button><span class="st" id="silSaved"></span></div>
+    <div class="row field"><span style="color:var(--fg)">Час запуску</span><span id="silFixed" style="color:var(--mut)"></span></div>
+    <div class="row" style="margin-bottom:12px"><span class="st" style="color:var(--mut)">Єдиний час для всіх відвідувачів, за київським часом. Годинник береться з сервера, а не з пристрою.</span></div>
     <button class="btn sm" id="silTest">🔔 Тест звуку</button>
   </div>
   <div class="card panel"><h3>Звуки тривоги</h3>
@@ -292,26 +291,81 @@ titleBlink(BASE[m]);
 refreshNoise()}
 document.querySelectorAll(".seg button").forEach(function(b){b.addEventListener("click",function(){demo=true;if(liveOn)$("liveBack").hidden=false;setMode(b.dataset.mode,true)})});
 
-/* silence minute */
+/* silence minute: єдиний час для всіх (Київ), спільний годинник, синхронне відтворення */
+var SIL_TIME="08:59:00"; /* <-- час запуску за київським часом (ГГ:ХХ:СС), однаковий для всіх */
+var SIL_SEC=(function(p){return(+p[0])*3600+(+p[1]||0)*60+(+p[2]||0)})(SIL_TIME.split(":"));
+var SIL_FALLBACK=170; /* тривалість, поки не завантажились метадані mp3 */
 var C=2*Math.PI*78;
-var silTotal=60,silT0=0;
+var silTotal=60,silT0=0,silAuto=false,silBlocked=false,skipDay=0;
+
+/* --- спільний годинник: серверний час замість годинника пристрою --- */
+var clockOff=0,clockOK=false;
+function nowMs(){return Date.now()+clockOff}
+function syncClock(){
+var base=(PUBLIC_PROXY||"").replace(/\/proxy\/.*$/,""),best=null,n=0;
+function fin(){if(best&&best.rtt<6000){clockOff=best.off;clockOK=true;drawSil()}}
+function one(){
+if(n>=5){fin();return}n++;
+var t0=Date.now();
+var p=base?fetch(base+"/proxy/time?_="+t0,{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){var t1=Date.now();if(!j||!isFinite(j.now))throw 0;return{rtt:t1-t0,off:j.now-(t0+t1)/2}}):Promise.reject();
+p.catch(function(){
+if(location.protocol==="file:")return null;
+var u0=Date.now();
+return fetch(location.pathname||"/",{method:"HEAD",cache:"no-store"}).then(function(r){var d=Date.parse(r.headers.get("Date")),u1=Date.now();return isNaN(d)?null:{rtt:u1-u0+1000,off:d+500-(u0+u1)/2}})
+}).then(function(s){if(s&&(!best||s.rtt<best.rtt))best=s}).catch(function(){}).then(function(){setTimeout(one,150)})}
+one()}
+setInterval(syncClock,300000);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)syncClock()});
+
+/* --- київський час доби (з урахуванням літнього часу) --- */
+var KF=null;(function(){var o={year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"};
+try{o.timeZone="Europe/Kyiv";KF=new Intl.DateTimeFormat("en-GB",o)}catch(e){try{o.timeZone="Europe/Kiev";KF=new Intl.DateTimeFormat("en-GB",o)}catch(e2){KF=null}}})();
+function euSun(y,m){var d=new Date(Date.UTC(y,m+1,0,1));d.setUTCDate(d.getUTCDate()-d.getUTCDay());return d.getTime()}
+function kyivOff(ms){
+if(KF){try{var o={};KF.formatToParts(new Date(ms)).forEach(function(x){o[x.type]=x.value});return Date.UTC(+o.year,+o.month-1,+o.day,(+o.hour)%24,+o.minute,+o.second)-Math.floor(ms/1000)*1000}catch(e){}}
+var y=new Date(ms).getUTCFullYear();return((ms>=euSun(y,2)&&ms<euSun(y,9))?3:2)*36e5}
+function kyivNow(){var ms=nowMs(),l=ms+kyivOff(ms);return{sec:(((l%864e5)+864e5)%864e5)/1000,day:Math.floor(l/864e5)}}
+function globalEp(){return kyivNow().sec-SIL_SEC}
+
 function silAudio(){return el(FILES.silence)}
-function silDur(){var a=silAudio();return(isFinite(a.duration)&&a.duration>0)?a.duration:60}
-function silElapsed(){var a=silAudio();if(a.paused||a.error)return Math.min((Date.now()-silT0)/1000,silTotal);return a.currentTime}
+function silDur(){var a=silAudio();return(isFinite(a.duration)&&a.duration>0)?a.duration:SIL_FALLBACK}
+function silElapsed(){if(silAuto)return Math.max(0,Math.min(globalEp(),silTotal));var a=silAudio();if(a.paused||a.error)return Math.min((Date.now()-silT0)/1000,silTotal);return a.currentTime}
 function fmt(t){t=Math.max(0,Math.ceil(t));return pad(Math.floor(t/60))+":"+pad(t%60)}
 function drawSil(){var tot=silActive?silTotal:silDur(),ep=silActive?silElapsed():0;
 $("pg").style.strokeDashoffset=String(C*(1-(silActive?Math.min(1,ep/tot):.29)));
 $("clock").textContent=fmt(tot-ep);
 var b=$("silBtn");b.textContent=silActive?"⏹ Зупинити":"▶ Запустити зараз";b.classList.toggle("stop",silActive);
-var h=$("silHint");if(silActive){h.textContent="🕯️ Триває вшанування пам’яті полеглих захисників…";h.style.color="var(--red)"}else if(S.silOn){h.textContent="⏰ Щодня о "+S.silTime.slice(0,5)+" (увімкнено)";h.style.color="var(--blue)"}else{h.textContent="⚪ Автозапуск вимкнено";h.style.color="var(--mut)"}}
-function startSil(auto){if(silActive)return;silActive=true;silT0=Date.now();silTotal=silDur();var a=silAudio();play(FILES.silence);
-a.onloadedmetadata=function(){if(silActive)silTotal=silDur()};a.onended=function(){if(silActive)stopSil(true)};
-addLog(auto?"Автозапуск хвилини мовчання":"Хвилину мовчання запущено");refreshNoise();drawSil();
-silTimer=setInterval(function(){if(silElapsed()>=silTotal-0.05&&(silAudio().paused||silAudio().error)){stopSil(true)}else drawSil()},250)}
-function stopSil(done){if(!silActive)return;clearInterval(silTimer);silActive=false;if(!done)stopSnd();silAudio().onended=null;addLog(done?"Хвилину мовчання завершено":"Хвилину мовчання зупинено");refreshNoise();drawSil()}
+var h=$("silHint");if(silActive&&silBlocked){h.textContent="🔇 Торкніться екрана, щоб увімкнути звук";h.style.color="var(--yel)"}else if(silActive){h.textContent="🕯️ Триває вшанування пам’яті полеглих захисників…";h.style.color="var(--red)"}else if(S.silOn){h.textContent="⏰ Щодня о "+SIL_TIME.slice(0,5)+" за Києвом (увімкнено)"+(clockOK?" · час синхронізовано":"");h.style.color="var(--blue)"}else{h.textContent="⚪ Автозапуск вимкнено";h.style.color="var(--mut)"}}
+
+/* відтворення з потрібної позиції (для тих, хто приєднався посеред хвилини, і для корекції) */
+function playSilAt(off){stopSnd();var a=silAudio();a.loop=false;a.volume=1;curSnd=a;
+try{a.currentTime=Math.max(0,off)}catch(e){}
+var p=a.play();if(p&&p.catch)p.catch(function(){silBlocked=true;toast("Торкніться екрана, щоб увімкнути звук");drawSil()});
+a.onerror=function(){toast("Файл assets/minute_of_silence.mp3 не знайдено")}}
+function startSil(auto,off){if(silActive)return;off=off||0;silActive=true;silAuto=!!auto;silBlocked=false;silT0=Date.now()-off*1000;silTotal=silDur();var a=silAudio();
+playSilAt(off);
+a.onloadedmetadata=function(){if(silActive){silTotal=silDur();if(silAuto){try{a.currentTime=Math.max(0,globalEp())}catch(e){}}}};
+a.onended=function(){if(silActive)stopSil(true)};
+addLog(auto?(off>1?"Приєднання до хвилини мовчання (+"+Math.round(off)+" с)":"Автозапуск хвилини мовчання"):"Хвилину мовчання запущено");
+refreshNoise();drawSil();
+silTimer=setInterval(silStep,200)}
+function silStep(){var a=silAudio();
+if(silAuto){var ep=globalEp();
+if(ep>=silTotal-0.05){stopSil(true);return}
+/* корекція дрейфу: звук завжди відповідає спільному годиннику */
+if(!silBlocked&&!a.error&&!a.paused&&Math.abs(a.currentTime-Math.max(0,ep))>0.2){try{a.currentTime=Math.max(0,ep)}catch(e){}}
+}else if(silElapsed()>=silTotal-0.05&&(a.paused||a.error)){stopSil(true);return}
+drawSil()}
+function stopSil(done){if(!silActive)return;clearInterval(silTimer);silActive=false;if(silAuto)skipDay=kyivNow().day;silAuto=false;silBlocked=false;
+if(!done||curSnd===silAudio())stopSnd();
+silAudio().onended=null;silAudio().onloadedmetadata=null;addLog(done?"Хвилину мовчання завершено":"Хвилину мовчання зупинено");refreshNoise();drawSil()}
 $("silBtn").onclick=function(){silActive?stopSil(false):startSil(false)};
 silAudio().addEventListener("loadedmetadata",function(){if(!silActive)drawSil()});
-var lastFire="";setInterval(function(){if(!S.silOn||silActive)return;var d=new Date(),n=pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds());if(n===S.silTime&&lastFire!==n){lastFire=n;startSil(true)}},500);
+/* автозапуск: однаковий момент у всіх; хто відкрив сторінку посеред хвилини, приєднується з поточної позиції */
+setInterval(function(){if(!S.silOn||silActive)return;var k=kyivNow();if(k.day===skipDay)return;var ep=k.sec-SIL_SEC;if(ep>=0&&ep<silDur()-1)startSil(true,ep)},100);
+/* якщо браузер заблокував автозвук: перший дотик вмикає звук одразу з правильної секунди */
+["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(silActive&&silBlocked){silBlocked=false;playSilAt(silAuto?globalEp():silElapsed());drawSil()}},true)});
+syncClock();
 
 /* white noise */
 function refreshNoise(){var paused=mode!=="calm"||silActive,st=$("noiseSt");
@@ -345,12 +399,6 @@ $("tokPw").addEventListener("keydown",function(e){if(e.key==="Enter")tryUnlock()
 $("tokLock").onclick=function(){vaultLock();toast("Токен заблоковано")};
 $("tokSave").onclick=function(){var v=$("token").value.trim();if(!v){toast("Токен порожній");return}encTok(TOKEN_PW,v).then(function(b){S.tokEnc=b;TOKEN=v;if(LIVE_TOKEN!==null)LIVE_TOKEN=v;save();addLog("Токен змінено");toast("Токен збережено")})};
 tog($("silOn"),function(v){S.silOn=v;save();drawSil()});
-function normT(v){return v.length===5?v+":00":v}
-function savedLbl(){var d=normT($("silTime").value)!==S.silTime;$("silSaved").textContent=d?"Є незбережені зміни":"Збережено: "+S.silTime.slice(0,5);$("silSaved").style.color=d?"var(--yel)":"var(--grn)"}
-function syncPresets(){var v=normT($("silTime").value);document.querySelectorAll("#presets button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===v)})}
-$("silTime").oninput=function(){syncPresets();savedLbl()};
-document.querySelectorAll("#presets button").forEach(function(b){b.onclick=function(){$("silTime").value=b.dataset.t;syncPresets();savedLbl()}});
-$("silSave").onclick=function(){var v=normT($("silTime").value);if(!$("silTime").value){toast("Вкажіть час");return}S.silTime=v;lastFire="";save();syncPresets();savedLbl();drawSil();addLog("Час хвилини мовчання збережено: "+v.slice(0,5));toast("Збережено: "+v.slice(0,5))};
 $("silTest").onclick=function(){play(FILES.silence)};
 tog($("sndOn"),function(v){S.sndOn=v;save()});
 document.querySelectorAll("#sndList button").forEach(function(b){b.onclick=function(){play(b.dataset.s)}});
@@ -490,7 +538,7 @@ setTheme(S.theme||(matchMedia("(prefers-color-scheme: light)").matches?"light":"
 function titleBlink(m){clearInterval(tbT);var base="Тривога — монітор";if(m==="calm"){document.title=base;return}var a=m==="alert"?"🚨 Повітряна тривога!":"🟡 Повітряна тривога (жовтий рівень)",f=false;document.title=a;tbT=setInterval(function(){f=!f;document.title=f?base:a},900)}
 ob.value=S.oblast in OBL?S.oblast:"Рівненська область";fillRaion();pill();
 sw($("airOnly"),S.air);$("interval").value=S.interval;$("intLbl").textContent="Опитування сервера: "+S.interval+" с";vaultUI(false);save();
-sw($("silOn"),S.silOn);$("silTime").value=S.silTime;syncPresets();savedLbl();sw($("sndOn"),S.sndOn);$("noiseVol").value=S.noiseVol;
+sw($("silOn"),S.silOn);$("silFixed").textContent=SIL_TIME+" (Київ)";sw($("sndOn"),S.sndOn);$("noiseVol").value=S.noiseVol;
 renderLog();setMode("calm",false);drawSil();noiseOn=true;sw($("noiseSw"),true);refreshNoise();
 /* браузер дозволяє звук лише після першої дії користувача: повторюємо запуск шуму при першому кліку/дотику/клавіші */
 ["click","touchend","keydown","mousedown"].forEach(function(ev){document.addEventListener(ev,function(){if(noiseOn)refreshNoise()},{once:true,capture:true})});
