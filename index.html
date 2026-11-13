@@ -238,7 +238,7 @@ var OBL={"м. Київ":["Київ"],"м. Севастополь":["Севаст
 "Чернігівська область":["Чернігівський","Корюківський","Ніжинський","Новгород-Сіверський","Прилуцький"]};
 Object.keys(OBL).forEach(function(k){if(k.indexOf("м. ")!==0)OBL[k].unshift("Уся область")});
 /* Адреса Cloudflare Worker, напр. https://tryvoha.ВАШ.workers.dev/proxy/ukrainealarm . Порожньо = лише локальний server.py */
-var PUBLIC_PROXY="https://tryvoha-monitor.developed-project.workers.dev/proxy/ukrainealarm";
+var PUBLIC_PROXY="https://tryvoha-monitor.developed-project.workers.dev";
 var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:00",sndOn:true,noiseVol:50,log:[]};
 try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(raw))}catch(e){}
 if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
