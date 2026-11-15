@@ -192,6 +192,8 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
     <div id="admPanel" hidden>
       <label class="field"><span>Новий час запуску (Київ)</span><input type="time" id="silTime" step="1" value="08:59:00"></label>
       <div class="chips" id="presets" style="margin-bottom:12px"><button data-t="08:59:00">08:59</button><button data-t="09:00:00">09:00</button><button data-t="12:00:00">12:00</button></div>
+      <div class="row" style="margin-bottom:12px"><span class="st">Натисніть «Зберегти»: текст скопіюється й відкриється GitHub. Вставте його у файл (Ctrl+V), натисніть <b>Commit changes</b>. Через 1–2 хв новий час з’явиться в усіх.</span></div>
+      <a id="admLink" href="#" target="_blank" rel="noopener" hidden style="display:block;margin-bottom:12px;color:var(--blue)">Відкрити config.json на GitHub →</a>
       <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="silSave">💾 Зберегти для всіх</button><button class="btn sm" id="admLock">🔒 Заблокувати</button></div>
     </div>
     <button class="btn sm" id="silTest">🔔 Тест звуку</button>
@@ -304,8 +306,8 @@ function nt(v){return v.length===5?v+":00":v}
 function parseT(v){var p=v.split(":");return(+p[0])*3600+(+p[1]||0)*60+(+p[2]||0)}
 var SIL_TIME=SIL_RE.test(S.silG||"")?S.silG:SIL_DEFAULT; /* час із сервера (змінюється адміністратором); тут лише запасне значення */
 var SIL_SEC=parseT(SIL_TIME);
-var SIL_API=(PUBLIC_PROXY||"").replace(/\/proxy\/.*$/,"")+"/proxy/silence";
-var ADM_PW=null; /* пароль лише в пам'яті сторінки */
+var ADM_HASH="8634c1d438ede0418401670daff0b351025744ee27d0fe23c80c8d35f6c62436"; /* SHA-256 пароля: лише ховає панель, справжній захист це вхід у ваш GitHub */
+var GH_EDIT="https://github.com/kiss-archangel/tryvoha-monitor/edit/main/config.json";
 var SIL_FALLBACK=170; /* тривалість, поки не завантажились метадані mp3 */
 var C=2*Math.PI*78;
 var silTotal=60,silT0=0,silAuto=false,silBlocked=false,skipDay=0;
@@ -379,32 +381,28 @@ setInterval(function(){if(!S.silOn||silActive)return;var k=kyivNow();if(k.day===
 ["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(silActive&&silBlocked){silBlocked=false;playSilAt(silAuto?globalEp():silElapsed());drawSil()}},true)});
 syncClock();
 
-/* --- спільний час запуску: читається з сервера, змінюється паролем адміністратора --- */
+/* --- спільний час запуску: файл config.json у репозиторії; змінює той, хто може його редагувати на GitHub --- */
 function applySil(t){t=nt(t);if(t===SIL_TIME)return;var wasAuto=silActive&&silAuto;SIL_TIME=t;SIL_SEC=parseT(t);S.silG=t;save();
 if(wasAuto)stopSil(false);skipDay=0;$("silFixed").textContent=SIL_TIME+" (Київ)";if($("admPanel").hidden)$("silTime").value=SIL_TIME;drawSil()}
-function fetchSil(){if(!PUBLIC_PROXY)return;fetch(SIL_API+"?_="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(j){if(j&&SIL_RE.test(j.time||""))applySil(j.time)}).catch(function(){})}
+function fetchSil(){if(location.protocol==="file:")return;fetch("config.json?_="+Date.now(),{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&SIL_RE.test(j.silTime||""))applySil(j.silTime)}).catch(function(){})}
 setInterval(fetchSil,30000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)fetchSil()});
-function admPost(path,body){return fetch(SIL_API+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){return{st:r.status,j:j}})})}
-function admUI(on){$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";if(on)$("silTime").value=SIL_TIME;syncPresets()}
+function sha256hex(str){if(!(window.crypto&&crypto.subtle))return Promise.reject();return crypto.subtle.digest("SHA-256",new TextEncoder().encode(str)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return("0"+x.toString(16)).slice(-2)}).join("")})}
+function admUI(on){$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";$("admLink").hidden=true;if(on)$("silTime").value=SIL_TIME;syncPresets()}
 function syncPresets(){var v=nt($("silTime").value);document.querySelectorAll("#presets button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===v)})}
 $("silTime").oninput=syncPresets;
 document.querySelectorAll("#presets button").forEach(function(b){b.onclick=function(){$("silTime").value=b.dataset.t;syncPresets()}});
 $("admUnlock").onclick=function(){$("admForm").hidden=false;$("admPw").focus()};
 function admShake(){var b=$("admForm");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake")}
 function admTry(){var pw=$("admPw").value;if(!pw)return;
-admPost("/auth",{password:pw}).then(function(x){
-if(x.st===200){ADM_PW=pw;admUI(true);toast("Розблоковано")}
-else if(x.st===401){$("admPw").value="";admShake();toast("Невірний пароль")}
-else toast("Сервер не налаштовано (код "+x.st+")")}).catch(function(){toast("Немає зв’язку з сервером")})}
+sha256hex(pw).then(function(h){if(h===ADM_HASH){admUI(true);toast("Розблоковано")}else{$("admPw").value="";admShake();toast("Невірний пароль")}}).catch(function(){toast("Потрібне https-з’єднання для перевірки пароля")})}
 $("admGo").onclick=admTry;
 $("admPw").addEventListener("keydown",function(e){if(e.key==="Enter")admTry()});
-$("admLock").onclick=function(){ADM_PW=null;admUI(false);toast("Заблоковано")};
+$("admLock").onclick=function(){admUI(false);toast("Заблоковано")};
 $("silSave").onclick=function(){var v=$("silTime").value;if(!v){toast("Вкажіть час");return}v=nt(v);
-admPost("",{password:ADM_PW,time:v}).then(function(x){
-if(x.st===200){applySil(v);addLog("Час хвилини мовчання змінено для всіх: "+v.slice(0,5));toast("Збережено для всіх: "+v.slice(0,5))}
-else if(x.st===401){ADM_PW=null;admUI(false);toast("Пароль не прийнято, розблокуйте знову")}
-else toast("Не вдалося зберегти (код "+x.st+")")}).catch(function(){toast("Немає зв’язку з сервером")})};
+var txt=JSON.stringify({silTime:v},null,2)+"\n",l=$("admLink");l.href=GH_EDIT;l.hidden=false;
+var done=function(){toast("Скопійовано. Вставте у файл на GitHub і натисніть Commit");try{window.open(GH_EDIT,"_blank")}catch(e){}};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done).catch(function(){prompt("Скопіюйте цей текст і вставте у config.json на GitHub:",txt)})}else{prompt("Скопіюйте цей текст і вставте у config.json на GitHub:",txt)}};
 admUI(false);fetchSil();
 
 /* white noise */

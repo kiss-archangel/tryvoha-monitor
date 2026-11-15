@@ -12,13 +12,6 @@
 3. **Settings → Variables and Secrets → Add**: тип **Secret**, назва `TRYVOHA_TOKEN`, значення — ваш токен → **Deploy**.
 4. Перевірте в браузері `https://tryvoha.<ваш-піддомен>.workers.dev/proxy/status`: має бути `{"hasToken":true}`.
 
-### 1а. Адмін-доступ до часу хвилини мовчання
-1. **Storage & Databases → KV → Create** namespace (наприклад `tryvoha-sil`).
-2. Worker → **Settings → Bindings → Add → KV namespace**: змінна `SIL_KV`, оберіть створений namespace.
-3. **Settings → Variables and Secrets → Add**: тип **Secret**, назва `ADMIN_PASSWORD`, значення — пароль адміністратора → **Deploy**.
-4. На сайті в блоці «Хвилина мовчання» натисніть «🔓 Розблокувати», введіть пароль і змініть час. Він застосується в усіх відвідувачів протягом ~45 с.
-5. Перевірка: `/proxy/status` має показати `hasAdmin:true` і `hasKv:true`.
-
 ### 2. Сторінка
 1. Відкрийте `index.html`, знайдіть рядок `var PUBLIC_PROXY="";` і впишіть адресу:
    `var PUBLIC_PROXY="https://tryvoha.<ваш-піддомен>.workers.dev/proxy/ukrainealarm";`
@@ -26,6 +19,9 @@
 3. Залийте на GitHub: `git init`, `git add .`, `git commit`, `git push`.
 4. У репозиторії: **Settings → Pages → Deploy from a branch → main / root**.
 5. Через хвилину сайт буде на `https://<ваш-логін>.github.io/<репозиторій>/`. Це посилання й надсилайте людям.
+
+## Зміна часу хвилини мовчання
+Час лежить у файлі `config.json` поруч з `index.html` (за київським часом). На сайті: «🔓 Розблокувати» → пароль → оберіть час → «Зберегти для всіх» → у GitHub вставте скопійований текст у файл і натисніть **Commit changes**. Усі відвідувачі підхоплять новий час за 1–2 хвилини. Редагувати файл можна й напряму на GitHub (значок олівця).
 
 ## Локальний запуск (за бажанням)
 `Start.bat` (Windows) або `./Start.sh` (Ubuntu): локальний сервер із доступом з вашої мережі. Токен — у файлі `token.txt` (скопіюйте з `token.txt.example`, він у `.gitignore`).
