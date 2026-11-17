@@ -163,8 +163,8 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
     <div class="hint" id="silHint">⏰ Щодня о 08:59 (увімкнено)</div>
   </div>
   <div class="card noise">
-    <div class="row"><div><h2>Фоновий білий шум</h2><div class="st">Маскує сторонні звуки для спокою</div></div>
-      <button class="sw" id="noiseSw" role="switch" aria-checked="false" aria-label="Білий шум"></button></div>
+    <div class="row"><div><h2>Фоновий шум</h2><div class="st">Маскує сторонні звуки для спокою</div></div>
+      <button class="sw" id="noiseSw" role="switch" aria-checked="false" aria-label="Фоновий шум"></button></div>
     <input type="range" id="noiseVol" min="0" max="100" value="50" aria-label="Гучність шуму">
     <div class="st" id="noiseSt">Вимкнено</div>
   </div>
@@ -443,7 +443,7 @@ admUI(false);fetchSil();
 function refreshNoise(){var byAlert=mode!=="calm"&&!!S.noisePauseAlert,paused=byAlert||silActive,st=$("noiseSt");
 if(!noiseOn){st.textContent="Вимкнено";st.style.color="var(--mut)";stopNoise();return}
 if(paused){st.textContent=silActive?"⏸ Пауза на час хвилини мовчання":"⏸ Автопауза під час тривоги";st.style.color="var(--yel)";stopNoise()}else{st.textContent="🟢 Грає у фоні";st.style.color="var(--grn)";startNoise()}}
-tog($("noiseSw"),function(v){noiseOn=v;refreshNoise();addLog(v?"Білий шум увімкнено":"Білий шум вимкнено")});
+tog($("noiseSw"),function(v){noiseOn=v;refreshNoise();addLog(v?"Фоновий шум увімкнено":"Фоновий шум вимкнено")});
 $("noiseVol").addEventListener("input",function(e){S.noiseVol=+e.target.value;setVol();save()});
 
 /* settings */
