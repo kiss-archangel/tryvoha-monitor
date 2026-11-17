@@ -163,7 +163,7 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
     <div class="hint" id="silHint">⏰ Щодня о 08:59 (увімкнено)</div>
   </div>
   <div class="card noise">
-    <div class="row"><div><h2>Фоновий шум</h2><div class="st">Маскує сторонні звуки</div></div>
+    <div class="row"><div><h2>Фоновий білий шум</h2><div class="st">Маскує сторонні звуки для спокою</div></div>
       <button class="sw" id="noiseSw" role="switch" aria-checked="false" aria-label="Білий шум"></button></div>
     <input type="range" id="noiseVol" min="0" max="100" value="50" aria-label="Гучність шуму">
     <div class="st" id="noiseSt">Вимкнено</div>
@@ -190,8 +190,8 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
     <div class="row" id="admForm" hidden style="margin-bottom:12px"><input type="password" id="admPw" placeholder="Пароль адміністратора" autocomplete="off"><button class="btn sm" id="admGo">OK</button></div>
     <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="admUnlock">🔓 Розблокувати</button></div>
     <div id="admPanel" hidden>
-      <label class="field"><span>Новий час запуску (Київ)</span><input type="time" id="silTime" step="1" value="08:59:00"></label>
-      <div class="chips" id="presets" style="margin-bottom:12px"><button data-t="08:59:00">08:59</button><button data-t="09:00:00">09:00</button><button data-t="12:00:00">12:00</button></div>
+      <label class="field"><span>Новий час запуску (Київ)</span><input type="time" id="silTime" step="1" value="08:59:25"></label>
+      <div class="chips" id="presets" style="margin-bottom:12px"><button data-t="08:59:25">08:59:25</button><button data-t="08:59:00">08:59:00</button><button data-t="09:00:00">09:00:00</button></div>
       <div class="row" style="margin-bottom:12px"><span class="st">Натисніть «Зберегти»: текст скопіюється й відкриється GitHub. Вставте його у файл (Ctrl+V), натисніть <b>Commit changes</b>. Через 1–2 хв новий час з’явиться в усіх.</span></div>
       <a id="admLink" href="#" target="_blank" rel="noopener" hidden style="display:block;margin-bottom:12px;color:var(--blue)">Відкрити config.json на GitHub →</a>
       <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="silSave">💾 Зберегти для всіх</button><button class="btn sm" id="admLock">🔒 Заблокувати</button></div>
@@ -200,6 +200,7 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
   </div>
   <div class="card panel"><h3>Звуки тривоги</h3>
     <div class="row field"><span style="color:var(--fg)">Звук при тривозі</span><button class="sw" id="sndOn" role="switch" aria-checked="true" aria-label="Звук"></button></div>
+    <div class="row field"><span style="color:var(--fg)">Пауза шуму під час тривоги</span><button class="sw" id="noisePause" role="switch" aria-checked="false" aria-label="Пауза фонового шуму під час тривоги"></button></div>
     <label class="field"><span>Звук червоного рівня</span><select id="redPreset"><option value="mix">Ракетно-дронова загроза (комбінована)</option><option value="mass">Масована дронова загроза</option><option value="alert">Ракетна загроза</option></select></label>
     <div class="chips" id="sndList"><button data-s="air_yellow_drones">Дрони</button><button data-s="air_red_missiles">Ракети</button><button data-s="air_red_missiles_drones">Ракети+дрони</button><button data-s="air_red_mass_drones">Масові дрони</button><button data-s="allclear">Відбій</button><button data-s="minute_of_silence">Хв. мовчання</button></div><div style="margin-top:12px"><button class="btn sm" id="sndStop">⏹ Зупинити звук</button></div>
   </div>
@@ -247,7 +248,7 @@ var OBL={"м. Київ":["Київ"],"м. Севастополь":["Севаст
 Object.keys(OBL).forEach(function(k){if(k.indexOf("м. ")!==0)OBL[k].unshift("Уся область")});
 /* Адреса Cloudflare Worker, напр. https://tryvoha.ВАШ.workers.dev/proxy/ukrainealarm . Порожньо = лише локальний server.py */
 var PUBLIC_PROXY="https://tryvoha-monitor.developed-project.workers.dev/proxy/ukrainealarm";
-var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:00",sndOn:true,noiseVol:50,log:[]};
+var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:25",silDay:0,sndOn:true,noisePauseAlert:false,noiseVol:50,log:[]};
 try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(raw))}catch(e){}
 if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
 delete S.token;
@@ -272,12 +273,21 @@ var SND_DIR="assets/";
 var FILES={yellow:"air_yellow_drones",red:"air_red_missiles",mix:"air_red_missiles_drones",mass:"air_red_mass_drones",clear:"allclear",silence:"minute_of_silence",noise:"white_noise"};
 var cache={},curSnd=null,noiseEl=null;
 function el(n){if(!cache[n]){var a=new Audio(SND_DIR+n+".mp3");a.preload="auto";cache[n]=a}return cache[n]}
-function stopSnd(){if(curSnd){try{curSnd.pause();curSnd.currentTime=0}catch(e){}curSnd=null}}
-function play(n){stopSnd();var a=el(n);a.loop=false;a.volume=1;try{a.currentTime=0}catch(e){}curSnd=a;var p=a.play();if(p&&p.catch)p.catch(function(){toast("Не вдалося відтворити "+n+".mp3 (перевірте assets/)")});a.onerror=function(){toast("Файл assets/"+n+".mp3 не знайдено")}}
+var pendingSnd=null,pendingAt=0;
+function stopSnd(){pendingSnd=null;if(curSnd){try{curSnd.pause();curSnd.currentTime=0}catch(e){}curSnd=null}}
+function play(n){stopSnd();var a=el(n);a.loop=false;a.volume=1;try{a.currentTime=0}catch(e){}curSnd=a;var p=a.play();
+if(p&&p.catch)p.catch(function(e){var nm=e&&e.name;
+if(nm==="AbortError")return; /* звук перервано іншим запуском, це не помилка */
+if(nm==="NotAllowedError"){pendingSnd=n;pendingAt=Date.now();toast("Браузер заблокував звук. Торкніться екрана, щоб увімкнути");return}
+toast("Не вдалося відтворити "+n+".mp3 ("+(nm||"помилка")+")")});
+a.onerror=function(){toast("Файл assets/"+n+".mp3 не знайдено")}}
+/* якщо звук було заблоковано, перший дотик запускає його (якщо тривога свіжа) */
+["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(pendingSnd&&Date.now()-pendingAt<90000){var n=pendingSnd;pendingSnd=null;play(n)}},true)});
 function startNoise(){if(noiseEl&&!noiseEl.paused)return;noiseEl=el(FILES.noise);noiseEl.loop=true;setVol();var p=noiseEl.play();if(p&&p.catch)p.catch(function(){});noiseEl.onerror=function(){toast("Файл assets/white_noise.mp3 не знайдено")}}
 function stopNoise(){if(noiseEl){try{noiseEl.pause()}catch(e){}}}
 function setVol(){if(noiseEl)noiseEl.volume=Math.min(1,S.noiseVol/100)}
-function unlock(){Object.keys(FILES).forEach(function(k){el(FILES[k])});removeEventListener("pointerdown",unlock)}
+function unlock(){removeEventListener("pointerdown",unlock);Object.keys(FILES).forEach(function(k){var a=el(FILES[k]);if(!a.paused)return;a.muted=true;var p=a.play();
+if(p&&p.then)p.then(function(){if(a!==curSnd&&a!==noiseEl){a.pause();try{a.currentTime=0}catch(e){}}a.muted=false}).catch(function(){a.muted=false})})}
 addEventListener("pointerdown",unlock);
 
 /* state */
@@ -297,20 +307,20 @@ if(log)addLog(t[0].replace("!","")+" — "+S.oblast);
 if(log&&S.sndOn){if(m!=="calm")play(FILES[MSND[m]]);else if(prev!=="calm")play(FILES.clear)}
 if(m!=="calm"&&log&&navigator.vibrate)navigator.vibrate([200,100,200]);
 titleBlink(BASE[m]);
-refreshNoise()}
+refreshNoise();if(m!=="calm")silOnAlert()}
 document.querySelectorAll(".seg button").forEach(function(b){b.addEventListener("click",function(){demo=true;if(liveOn)$("liveBack").hidden=false;setMode(b.dataset.mode,true)})});
 
 /* silence minute: єдиний час для всіх (Київ), спільний годинник, синхронне відтворення */
-var SIL_DEFAULT="08:59:00",SIL_RE=/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+var SIL_DEFAULT="08:59:25",SIL_RE=/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 function nt(v){return v.length===5?v+":00":v}
 function parseT(v){var p=v.split(":");return(+p[0])*3600+(+p[1]||0)*60+(+p[2]||0)}
 var SIL_TIME=SIL_RE.test(S.silG||"")?S.silG:SIL_DEFAULT; /* час із сервера (змінюється адміністратором); тут лише запасне значення */
 var SIL_SEC=parseT(SIL_TIME);
 var ADM_HASH="8634c1d438ede0418401670daff0b351025744ee27d0fe23c80c8d35f6c62436"; /* SHA-256 пароля: лише ховає панель, справжній захист це вхід у ваш GitHub */
 var GH_EDIT="https://github.com/kiss-archangel/tryvoha-monitor/edit/main/config.json";
-var SIL_FALLBACK=170; /* тривалість, поки не завантажились метадані mp3 */
+var SIL_FALLBACK=171; /* тривалість, поки не завантажились метадані mp3 */
 var C=2*Math.PI*78;
-var silTotal=60,silT0=0,silAuto=false,silBlocked=false,skipDay=0;
+var silTotal=60,silT0=0,silAuto=false,silSync=false,silBlocked=false,liveOkAt=0,prePollDay=0;
 
 /* --- спільний годинник: серверний час замість годинника пристрою --- */
 var clockOff=0,clockOK=false;
@@ -343,47 +353,71 @@ function globalEp(){return kyivNow().sec-SIL_SEC}
 
 function silAudio(){return el(FILES.silence)}
 function silDur(){var a=silAudio();return(isFinite(a.duration)&&a.duration>0)?a.duration:SIL_FALLBACK}
-function silElapsed(){if(silAuto)return Math.max(0,Math.min(globalEp(),silTotal));var a=silAudio();if(a.paused||a.error)return Math.min((Date.now()-silT0)/1000,silTotal);return a.currentTime}
+function silLen(){return silDur()}
+/* вікно запуску: від SIL_TIME до 09:00:00 (Київ); якщо час запуску не раніше 09:00, то 60 с від нього */
+function silEndSec(){return SIL_SEC<32400?32400:SIL_SEC+60}
+/* стан тривоги з наявного джерела даних (live-опитування або кнопки режимів) */
+function alertActive(){return mode!=="calm"}
+function alertKnown(){return !liveOn||Date.now()-liveOkAt<Math.max(45000,S.interval*3000)}
+function silElapsed(){if(silSync)return Math.max(0,Math.min(globalEp(),silTotal));var a=silAudio();if(a.paused||a.error)return Math.min((Date.now()-silT0)/1000,silTotal);return a.currentTime}
 function fmt(t){t=Math.max(0,Math.ceil(t));return pad(Math.floor(t/60))+":"+pad(t%60)}
-function drawSil(){var tot=silActive?silTotal:silDur(),ep=silActive?silElapsed():0;
+function drawSil(){var tot=silActive?silTotal:silLen(),ep=silActive?silElapsed():0;
 $("pg").style.strokeDashoffset=String(C*(1-(silActive?Math.min(1,ep/tot):.29)));
 $("clock").textContent=fmt(tot-ep);
 var b=$("silBtn");b.textContent=silActive?"⏹ Зупинити":"▶ Запустити зараз";b.classList.toggle("stop",silActive);
-var h=$("silHint");if(silActive&&silBlocked){h.textContent="🔇 Торкніться екрана, щоб увімкнути звук";h.style.color="var(--yel)"}else if(silActive){h.textContent="🕯️ Триває вшанування пам’яті полеглих захисників…";h.style.color="var(--red)"}else if(S.silOn){h.textContent="⏰ Щодня о "+SIL_TIME.slice(0,5)+" за Києвом (увімкнено)"+(clockOK?" · час синхронізовано":"");h.style.color="var(--blue)"}else{h.textContent="⚪ Автозапуск вимкнено";h.style.color="var(--mut)"}}
+var h=$("silHint");if(silActive&&silBlocked){h.textContent="🔇 Торкніться екрана, щоб увімкнути звук";h.style.color="var(--yel)"}else if(silActive){h.textContent="🕯️ Триває вшанування пам’яті полеглих захисників…";h.style.color="var(--red)"}else if(S.silOn){h.textContent="⏰ Щодня о "+SIL_TIME.slice(0,8)+" за Києвом (увімкнено)"+(clockOK?" · час синхронізовано":"");h.style.color="var(--blue)"}else{h.textContent="⚪ Автозапуск вимкнено";h.style.color="var(--mut)"}}
 
-/* відтворення з потрібної позиції (для тих, хто приєднався посеред хвилини, і для корекції) */
 function playSilAt(off){stopSnd();var a=silAudio();a.loop=false;a.volume=1;curSnd=a;
 try{a.currentTime=Math.max(0,off)}catch(e){}
-var p=a.play();if(p&&p.catch)p.catch(function(){silBlocked=true;toast("Торкніться екрана, щоб увімкнути звук");drawSil()});
+var p=a.play();if(p&&p.catch)p.catch(function(e){if(e&&e.name==="AbortError")return;silBlocked=true;toast("Торкніться екрана, щоб увімкнути звук");drawSil()});
 a.onerror=function(){toast("Файл assets/minute_of_silence.mp3 не знайдено")}}
-function startSil(auto,off){if(silActive)return;off=off||0;silActive=true;silAuto=!!auto;silBlocked=false;silT0=Date.now()-off*1000;silTotal=silDur();var a=silAudio();
+/* sync=true: запуск точно вчасно, звук прив'язаний до спільного годинника; інакше (пізній запуск після відбою) програється з початку */
+function startSil(auto,off,sync){if(silActive)return;off=off||0;silActive=true;silAuto=!!auto;silSync=!!sync;silBlocked=false;silT0=Date.now()-off*1000;silTotal=silDur();var a=silAudio();
 playSilAt(off);
-a.onloadedmetadata=function(){if(silActive){silTotal=silDur();if(silAuto){try{a.currentTime=Math.max(0,globalEp())}catch(e){}}}};
+a.onloadedmetadata=function(){if(silActive){silTotal=silDur();if(silSync){try{a.currentTime=Math.max(0,globalEp())}catch(e){}}}};
 a.onended=function(){if(silActive)stopSil(true)};
-addLog(auto?(off>1?"Приєднання до хвилини мовчання (+"+Math.round(off)+" с)":"Автозапуск хвилини мовчання"):"Хвилину мовчання запущено");
+addLog(auto?(silSync?"Автозапуск хвилини мовчання":"Запуск хвилини мовчання після відбою тривоги"):"Хвилину мовчання запущено");
 refreshNoise();drawSil();
 silTimer=setInterval(silStep,200)}
 function silStep(){var a=silAudio();
-if(silAuto){var ep=globalEp();
+if(silAuto&&alertActive()){silOnAlert();return}
+if(silAuto&&silBlocked&&kyivNow().sec>=silEndSec()){stopSil(false);return} /* звук так і не дозволили до 09:00: скасовано */
+if(silSync){var ep=globalEp();
 if(ep>=silTotal-0.05){stopSil(true);return}
 /* корекція дрейфу: звук завжди відповідає спільному годиннику */
 if(!silBlocked&&!a.error&&!a.paused&&Math.abs(a.currentTime-Math.max(0,ep))>0.2){try{a.currentTime=Math.max(0,ep)}catch(e){}}
 }else if(silElapsed()>=silTotal-0.05&&(a.paused||a.error)){stopSil(true);return}
 drawSil()}
-function stopSil(done){if(!silActive)return;clearInterval(silTimer);silActive=false;if(silAuto)skipDay=kyivNow().day;silAuto=false;silBlocked=false;
-if(!done||curSnd===silAudio())stopSnd();
-silAudio().onended=null;silAudio().onloadedmetadata=null;addLog(done?"Хвилину мовчання завершено":"Хвилину мовчання зупинено");refreshNoise();drawSil()}
-$("silBtn").onclick=function(){silActive?stopSil(false):startSil(false)};
+/* interrupted=true: перервано тривогою, день не вважається відтвореним */
+function stopSil(done,interrupted){if(!silActive)return;clearInterval(silTimer);silActive=false;silAuto=false;silSync=false;silBlocked=false;
+var au=silAudio();try{au.pause()}catch(e){}if(curSnd===au)curSnd=null;
+au.onended=null;au.onloadedmetadata=null;
+if(interrupted){S.silDay=0;save()}
+addLog(interrupted?"Хвилину мовчання перервано: повітряна тривога":(done?"Хвилину мовчання завершено":"Хвилину мовчання зупинено"));refreshNoise();drawSil()}
+/* тривога під час автозапуску: негайна зупинка */
+function silOnAlert(){if(silActive&&silAuto)stopSil(false,true)}
+$("silBtn").onclick=function(){silActive?stopSil(false):startSil(false,0,false)};
 silAudio().addEventListener("loadedmetadata",function(){if(!silActive)drawSil()});
-/* автозапуск: однаковий момент у всіх; хто відкрив сторінку посеред хвилини, приєднується з поточної позиції */
-setInterval(function(){if(!S.silOn||silActive)return;var k=kyivNow();if(k.day===skipDay)return;var ep=k.sec-SIL_SEC;if(ep>=0&&ep<silDur()-1)startSil(true,ep)},100);
-/* якщо браузер заблокував автозвук: перший дотик вмикає звук одразу з правильної секунди */
-["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(silActive&&silBlocked){silBlocked=false;playSilAt(silAuto?globalEp():silElapsed());drawSil()}},true)});
+
+/* --- автозапуск за правилами ---
+ 1) від SIL_TIME (08:59:25 Київ) до 09:00:00; 2) під час тривоги не стартує; 3) після відбою стартує з початку, якщо ще раніше 09:00:00;
+ 4) з 09:00:00 на цей день скасовується; 5) S.silDay (зберігається в браузері) не дає запустити вдруге протягом дня. */
+setInterval(function(){if(!S.silOn||silActive)return;var k=kyivNow();if(S.silDay===k.day)return;
+var ep=k.sec-SIL_SEC;
+if(ep<0){ /* за кілька секунд до запуску оновлюємо дані про тривоги */
+if(ep>-12&&prePollDay!==k.day&&liveOn){prePollDay=k.day;poll()}return}
+if(k.sec>=silEndSec()){S.silDay=k.day;save();return} /* 09:00:00 минуло: на сьогодні скасовано */
+if(!alertKnown()||alertActive())return; /* тривога (або немає свіжих даних): чекаємо відбою */
+if(curSnd&&!curSnd.paused&&!curSnd.ended)return; /* дограє звук відбою/тривоги */
+S.silDay=k.day;save();
+startSil(true,ep<3?ep:0,ep<3)},100);
+/* якщо браузер заблокував автозвук: перший дотик вмикає звук (вчасний запуск: із правильної секунди, пізній: з початку) */
+["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(silActive&&silBlocked){silBlocked=false;if(silSync)playSilAt(globalEp());else{silT0=Date.now();playSilAt(0)}drawSil()}},true)});
 syncClock();
 
 /* --- спільний час запуску: файл config.json у репозиторії; змінює той, хто може його редагувати на GitHub --- */
 function applySil(t){t=nt(t);if(t===SIL_TIME)return;var wasAuto=silActive&&silAuto;SIL_TIME=t;SIL_SEC=parseT(t);S.silG=t;save();
-if(wasAuto)stopSil(false);skipDay=0;$("silFixed").textContent=SIL_TIME+" (Київ)";if($("admPanel").hidden)$("silTime").value=SIL_TIME;drawSil()}
+if(wasAuto)stopSil(false);S.silDay=0;save();$("silFixed").textContent=SIL_TIME+" (Київ)";if($("admPanel").hidden)$("silTime").value=SIL_TIME;drawSil()}
 function fetchSil(){if(location.protocol==="file:")return;fetch("config.json?_="+Date.now(),{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&SIL_RE.test(j.silTime||""))applySil(j.silTime)}).catch(function(){})}
 setInterval(fetchSil,30000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)fetchSil()});
@@ -406,9 +440,9 @@ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.write
 admUI(false);fetchSil();
 
 /* white noise */
-function refreshNoise(){var paused=mode!=="calm"||silActive,st=$("noiseSt");
+function refreshNoise(){var byAlert=mode!=="calm"&&!!S.noisePauseAlert,paused=byAlert||silActive,st=$("noiseSt");
 if(!noiseOn){st.textContent="Вимкнено";st.style.color="var(--mut)";stopNoise();return}
-if(paused){st.textContent="⏸ Автопауза під час тривоги або хвилини мовчання";st.style.color="var(--yel)";stopNoise()}else{st.textContent="🟢 Грає у фоні";st.style.color="var(--grn)";startNoise()}}
+if(paused){st.textContent=silActive?"⏸ Пауза на час хвилини мовчання":"⏸ Автопауза під час тривоги";st.style.color="var(--yel)";stopNoise()}else{st.textContent="🟢 Грає у фоні";st.style.color="var(--grn)";startNoise()}}
 tog($("noiseSw"),function(v){noiseOn=v;refreshNoise();addLog(v?"Білий шум увімкнено":"Білий шум вимкнено")});
 $("noiseVol").addEventListener("input",function(e){S.noiseVol=+e.target.value;setVol();save()});
 
@@ -439,6 +473,7 @@ $("tokSave").onclick=function(){var v=$("token").value.trim();if(!v){toast("То
 tog($("silOn"),function(v){S.silOn=v;save();drawSil()});
 $("silTest").onclick=function(){play(FILES.silence)};
 tog($("sndOn"),function(v){S.sndOn=v;save()});
+tog($("noisePause"),function(v){S.noisePauseAlert=v;save();refreshNoise()});
 document.querySelectorAll("#sndList button").forEach(function(b){b.onclick=function(){play(b.dataset.s)}});
 $("sndStop").onclick=stopSnd;
 
@@ -497,7 +532,7 @@ function liveUI(ok,msg){var d=$("ldot");d.className="ldot "+(ok?"ok":"err");
 $("liveT").textContent=ok?"Онлайн · оновлено "+(function(n){return pad(n.getHours())+":"+pad(n.getMinutes())+":"+pad(n.getSeconds())})(new Date()):"Помилка підключення";
 $("liveS").textContent=ok?("Регіон: "+(S.oblast.indexOf("м. ")===0||S.raion==="Уся область"?S.oblast:S.raion+" р-н")+" · активних тривог: "+liveCount):msg}
 function poll(){if(!liveOn||liveBusy)return;liveBusy=true;
-fetchLive(LIVE_TOKEN).then(function(cl){liveCount=cl.count;liveMode=cl.mode;liveUI(true);if(!demo&&liveMode!==mode)setMode(liveMode,true)})
+fetchLive(LIVE_TOKEN).then(function(cl){liveCount=cl.count;liveMode=cl.mode;liveOkAt=Date.now();liveUI(true);if(!demo&&liveMode!==mode)setMode(liveMode,true)})
 .catch(function(e){liveUI(false,errMsg(e));if(e&&e.code==="auth"){addLog("Токен відхилено сервером");stopLive(true)}})
 .then(function(){liveBusy=false})}
 function startLive(){if(liveOn)return;liveOn=true;demo=false;$("livePwRow").hidden=true;$("liveStop").hidden=false;$("liveBack").hidden=true;
@@ -576,7 +611,7 @@ setTheme(S.theme||(matchMedia("(prefers-color-scheme: light)").matches?"light":"
 function titleBlink(m){clearInterval(tbT);var base="Тривога — монітор";if(m==="calm"){document.title=base;return}var a=m==="alert"?"🚨 Повітряна тривога!":"🟡 Повітряна тривога (жовтий рівень)",f=false;document.title=a;tbT=setInterval(function(){f=!f;document.title=f?base:a},900)}
 ob.value=S.oblast in OBL?S.oblast:"Рівненська область";fillRaion();pill();
 sw($("airOnly"),S.air);$("interval").value=S.interval;$("intLbl").textContent="Опитування сервера: "+S.interval+" с";vaultUI(false);save();
-sw($("silOn"),S.silOn);$("silFixed").textContent=SIL_TIME+" (Київ)";sw($("sndOn"),S.sndOn);$("noiseVol").value=S.noiseVol;
+sw($("silOn"),S.silOn);$("silFixed").textContent=SIL_TIME+" (Київ)";sw($("sndOn"),S.sndOn);sw($("noisePause"),!!S.noisePauseAlert);$("noiseVol").value=S.noiseVol;
 renderLog();setMode("calm",false);drawSil();noiseOn=true;sw($("noiseSw"),true);refreshNoise();
 /* браузер дозволяє звук лише після першої дії користувача: повторюємо запуск шуму при першому кліку/дотику/клавіші */
 ["click","touchend","keydown","mousedown"].forEach(function(ev){document.addEventListener(ev,function(){if(noiseOn)refreshNoise()},{once:true,capture:true})});
