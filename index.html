@@ -172,6 +172,11 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
 
 <section class="col" id="settings" aria-label="Налаштування">
   <button class="back" data-go="monitor">← До монітора</button>
+  <div class="card panel" id="admCard">
+    <div class="row"><h3 style="margin:0">🔐 Адміністратор</h3><button class="btn sm" id="admUnlock">🔓 Розблокувати</button><button class="btn sm" id="admLock" hidden>🔒 Заблокувати</button></div>
+    <div class="row" id="admForm" hidden style="margin-top:12px"><input type="password" id="admPw" placeholder="Пароль адміністратора" autocomplete="off"><button class="btn sm" id="admGo">OK</button></div>
+    <div class="st" id="admState" style="margin-top:8px">Розблокуйте, щоб змінити час хвилини мовчання, бачити підключених користувачів та їхню історію, робити перевірку синхронності.</div>
+  </div>
   <div class="card panel"><h3>Регіон</h3>
     <label class="field"><span>Область</span><select id="oblast"></select></label>
     <label class="field"><span>Район</span><select id="raion"></select></label>
@@ -186,15 +191,13 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
   <div class="card panel"><h3>Хвилина мовчання</h3>
     <div class="row field"><span style="color:var(--fg)">Автозапуск щодня</span><button class="sw" id="silOn" role="switch" aria-checked="true" aria-label="Автозапуск"></button></div>
     <div class="row field"><span style="color:var(--fg)">Час запуску</span><span id="silFixed" style="color:var(--mut)"></span></div>
-    <div class="row" style="margin-bottom:12px"><span class="st">Єдиний час для всіх відвідувачів, за київським часом. Змінити його може лише адміністратор.</span></div>
-    <div class="row" id="admForm" hidden style="margin-bottom:12px"><input type="password" id="admPw" placeholder="Пароль адміністратора" autocomplete="off"><button class="btn sm" id="admGo">OK</button></div>
-    <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="admUnlock">🔓 Розблокувати</button></div>
+    <div class="row" style="margin-bottom:12px"><span class="st">Єдиний час для всіх відвідувачів, за київським часом. Змінити його може лише адміністратор (розблокування вгорі налаштувань).</span></div>
     <div id="admPanel" hidden>
       <label class="field"><span>Новий час запуску (Київ)</span><input type="time" id="silTime" step="1" value="08:59:25"></label>
       <div class="chips" id="presets" style="margin-bottom:12px"><button data-t="08:59:25">08:59:25</button><button data-t="08:59:00">08:59:00</button><button data-t="09:00:00">09:00:00</button></div>
       <div class="row" style="margin-bottom:12px"><span class="st">Натисніть «Зберегти»: текст скопіюється й відкриється GitHub. Вставте його у файл (Ctrl+V), натисніть <b>Commit changes</b>. Через 1–2 хв новий час з’явиться в усіх.</span></div>
       <a id="admLink" href="#" target="_blank" rel="noopener" hidden style="display:block;margin-bottom:12px;color:var(--blue)">Відкрити config.json на GitHub →</a>
-      <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="silSave">💾 Зберегти для всіх</button><button class="btn sm" id="admLock">🔒 Заблокувати</button></div>
+      <div class="chips" style="margin-bottom:12px"><button class="btn sm" id="silSave">💾 Зберегти для всіх</button></div>
     </div>
     <button class="btn sm" id="silTest">🔔 Тест звуку</button>
     <button class="btn sm" id="syncBtn" hidden>🔍 Перевірка синхронності</button>
@@ -465,7 +468,7 @@ setInterval(fetchSil,30000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)fetchSil()});
 function sha256hex(str){if(!(window.crypto&&crypto.subtle))return Promise.reject();return crypto.subtle.digest("SHA-256",new TextEncoder().encode(str)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return("0"+x.toString(16)).slice(-2)}).join("")})}
 var admOn=false;
-function admUI(on){admOn=!!on;$("presCard").style.display=on?"":"none";if(on)syncListen();else syncUnlisten();$("syncBtn").hidden=!on;$("syncAll").hidden=!on;if(!on&&!$("syncPanel").hidden){var keep=S.syncOpen;syncOpenPanel(false);S.syncOpen=keep;save()}if(on&&S.syncOpen&&$("syncPanel").hidden)syncOpenPanel(true,true);$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";$("admLink").hidden=true;if(on)$("silTime").value=SIL_TIME;syncPresets()}
+function admUI(on){admOn=!!on;$("admLock").hidden=!on;$("admState").textContent=on?"✅ Адмін-доступ відкрито: нижче доступні час запуску хвилини мовчання, підключені користувачі, історія та перевірка синхронності.":"Розблокуйте, щоб змінити час хвилини мовчання, бачити підключених користувачів та їхню історію, робити перевірку синхронності.";$("presCard").style.display=on?"":"none";if(on)syncListen();else syncUnlisten();$("syncBtn").hidden=!on;$("syncAll").hidden=!on;if(!on&&!$("syncPanel").hidden){var keep=S.syncOpen;syncOpenPanel(false);S.syncOpen=keep;save()}if(on&&S.syncOpen&&$("syncPanel").hidden)syncOpenPanel(true,true);$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";$("admLink").hidden=true;if(on)$("silTime").value=SIL_TIME;syncPresets()}
 function syncPresets(){var v=nt($("silTime").value);document.querySelectorAll("#presets button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===v)})}
 $("silTime").oninput=syncPresets;
 document.querySelectorAll("#presets button").forEach(function(b){b.onclick=function(){$("silTime").value=b.dataset.t;syncPresets()}});
