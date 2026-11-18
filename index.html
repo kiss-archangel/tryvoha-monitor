@@ -211,6 +211,10 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
     <div id="presCount" style="font-weight:700;margin:4px 0"></div>
     <div id="presList" class="st" style="max-height:320px;overflow:auto;margin-bottom:8px"></div>
     <div class="st">У списку ті, хто тримає сайт відкритим (оновлюється приблизно раз на 2 хв; хто закрив сайт, зникає за ~5 хв). Передається лише анонімна інформація про пристрій. IP-адреси інших користувачів не збираються й не показуються: це їхні приватні дані.</div>
+    <div class="row" style="margin:14px 0 4px"><h3 style="margin:0">🕘 Історія підключень</h3><button class="btn sm" id="presHistClear">Очистити</button></div>
+    <div id="presHistInfo" class="st" style="margin-bottom:4px"></div>
+    <div id="presHist" class="st" style="max-height:320px;overflow:auto"></div>
+    <div class="st" style="margin-top:6px">Історія зберігається в цьому браузері й наповнюється, поки ви розблокували адмін-доступ (одразу після розблокування підтягуються події за останні ~6 хв). Що відбувалося, коли вас не було, тут не видно. Час київський.</div>
   </div>
   <div class="card panel"><h3>Звуки тривоги</h3>
     <div class="row field"><span style="color:var(--fg)">Звук при тривозі</span><button class="sw" id="sndOn" role="switch" aria-checked="true" aria-label="Звук"></button></div>
@@ -550,10 +554,30 @@ addEventListener("pagehide",function(){if(presEnabled())presBye()});
 tog($("presSw"),function(v){S.presOn=v;save();clearInterval(presTimer);if(v)presStart();else presBye();presRender()});
 sw($("presSw"),S.presOn!==false);
 function cl(v,n){return String(v==null?"":v).replace(/[\u0000-\u001f<>]/g,"").slice(0,n)}
+/* --- історія підключень (зберігається в цьому браузері) --- */
+var HK="tryvoha_hist_v1",hist=[],histT=0;
+try{var hv=JSON.parse(localStorage.getItem(HK)||"[]");if(Array.isArray(hv))hist=hv.filter(function(e){return e&&e.id&&isFinite(e.first)&&isFinite(e.last)}).slice(-300)}catch(e){}
+function histTouch(){if(histT)return;histT=setTimeout(function(){histT=0;try{localStorage.setItem(HK,JSON.stringify(hist.slice(-300)))}catch(e){}},3000)}
+function histLast(id){for(var i=hist.length-1;i>=Math.max(0,hist.length-120);i--)if(hist[i].id===id)return hist[i];return null}
+function histNote(id,d,t,bye){var e=histLast(id);
+if(bye){if(e&&!e.end&&t>=e.first){e.end=Math.max(t,e.last);histTouch()}return}
+if(e&&t<=e.last)return; /* вже враховано (повтор при підключенні до каналу) */
+if(e&&!e.end&&t-e.last<=330000){e.last=t;histTouch();return}
+hist.push({id:id,dev:d.dev,ua:d.ua,os:d.os,lang:d.lang,tz:d.tz,scr:d.scr,first:t,last:t});if(hist.length>300)hist.shift();histTouch()}
+function histSweep(now){var ch=false;hist.forEach(function(e){if(!e.end&&now-e.last>330000){e.end=e.last;ch=true}});if(ch)histTouch()}
+function fmtK(ms){var d=new Date(ms+kyivOff(ms));return pad(d.getUTCDate())+"."+pad(d.getUTCMonth()+1)+" "+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())+":"+pad(d.getUTCSeconds())}
+function durT(ms){var m=Math.round(ms/60000);return m<1?"<1 хв":(m<60?m+" хв":Math.floor(m/60)+" год "+(m%60)+" хв")}
+function presHistRender(now){var box=$("presHist"),info=$("presHistInfo");if(!box||!info)return;histSweep(now);
+info.textContent="Записів у журналі: "+hist.length+" (показано останні 60)";box.textContent="";
+hist.slice(-60).reverse().forEach(function(e){var on=!e.end&&now-e.last<=330000;
+presRow(box,fmtK(e.first)+" · "+e.dev+" "+e.ua+" · "+e.os+" · #"+e.id,[e.lang,e.tz,e.scr,on?"🟢 онлайн, на сайті "+durT(now-e.first):"вийшов "+fmtK(e.end||e.last)+" · був "+durT((e.end||e.last)-e.first)].filter(Boolean).join(" · "))})}
+$("presHistClear").onclick=function(){if(confirm("Очистити історію підключень?")){hist=[];try{localStorage.removeItem(HK)}catch(e){}presRender()}};
 function presIn(j,m){var id=cl(m.id,12);if(!id||id===PRES_ID)return;
-if(m.k==="bye"){delete peers[id];return}
-var t=(+j.time||0)*1000;if(peers[id]&&peers[id].t>t)return;
-peers[id]={t:t,d:{dev:cl(m.dev,4),ua:cl(m.ua,24),os:cl(m.os,16),lang:cl(m.lang,12),tz:cl(m.tz,32),scr:cl(m.scr,12),st:cl(m.st,28),up:Math.max(0,+m.up||0),off:+m.off||0}};presRenderAt=0}
+if(m.k==="bye"){delete peers[id];histNote(id,null,(+j.time||0)*1000,true);return}
+var t=(+j.time||0)*1000;if(!t)return;
+var d={dev:cl(m.dev,4),ua:cl(m.ua,24),os:cl(m.os,16),lang:cl(m.lang,12),tz:cl(m.tz,32),scr:cl(m.scr,12),st:cl(m.st,28),up:Math.max(0,+m.up||0),off:+m.off||0};
+histNote(id,d,t,false);if(peers[id]&&peers[id].t>t)return;
+peers[id]={t:t,d:d};presRenderAt=0}
 function presRow(box,title,sub){var d=document.createElement("div");d.style.cssText="padding:6px 0;border-top:1px solid rgba(128,128,128,.25)";
 var a=document.createElement("div");a.textContent=title;a.style.fontWeight="600";var b=document.createElement("div");b.className="st";b.textContent=sub;d.appendChild(a);d.appendChild(b);box.appendChild(d)}
 function presRender(){var cnt=$("presCount"),box=$("presList");if(!cnt||!box||$("presCard").style.display==="none")return;
@@ -562,7 +586,7 @@ cnt.textContent="👥 Підключено: "+(ids.length+1)+(presEnabled()?"":"
 box.textContent="";var me=presInfo();
 presRow(box,me.dev+" "+me.ua+" · "+me.os+" (це ви)",[me.lang,me.tz,me.scr,me.st,"на сайті "+Math.max(1,Math.round(me.up/60))+" хв","годинник пристрою "+f3(clockOff/-1000)+" с"].filter(Boolean).join(" · "));
 ids.slice(0,100).forEach(function(id){var d=peers[id].d,up=d.up+Math.max(0,(now-peers[id].t)/1000);
-presRow(box,d.dev+" "+d.ua+" · "+d.os+" · #"+id,[d.lang,d.tz,d.scr,d.st,"на сайті "+Math.max(1,Math.round(up/60))+" хв","годинник пристрою "+f3(d.off/-1000)+" с"].filter(Boolean).join(" · "))})}
+presRow(box,d.dev+" "+d.ua+" · "+d.os+" · #"+id,[d.lang,d.tz,d.scr,d.st,"на сайті "+Math.max(1,Math.round(up/60))+" хв","годинник пристрою "+f3(d.off/-1000)+" с"].filter(Boolean).join(" · "))});presHistRender(now)}
 
 presStart();setInterval(presRender,2000);
 
