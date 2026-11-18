@@ -256,7 +256,7 @@ var OBL={"м. Київ":["Київ"],"м. Севастополь":["Севаст
 Object.keys(OBL).forEach(function(k){if(k.indexOf("м. ")!==0)OBL[k].unshift("Уся область")});
 /* Адреса Cloudflare Worker, напр. https://tryvoha.ВАШ.workers.dev/proxy/ukrainealarm . Порожньо = лише локальний server.py */
 var PUBLIC_PROXY="https://tryvoha-monitor.developed-project.workers.dev/proxy/ukrainealarm";
-var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:25",silDay:0,silRetry:0,silSess:null,sndOn:true,noisePauseAlert:false,noiseVol:50,log:[]};
+var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:25",silDay:0,silRetry:0,silSess:null,syncOpen:false,sndOn:true,noisePauseAlert:false,noiseVol:50,log:[]};
 try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(raw))}catch(e){}
 if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
 delete S.token;
@@ -482,7 +482,7 @@ L.push("Зсув годинника пристрою: "+(clockOK?f3(clockOff/100
 if(clockInfo){L.push("Джерело часу: "+clockInfo.src);L.push("Затримка мережі: "+Math.round(clockInfo.r)+" мс");L.push("Остання синхронізація: "+Math.round((Date.now()-clockInfo.at)/1000)+" с тому")}
 else L.push("Джерело часу: годинник пристрою (серверний час недоступний)");
 var ep=sec-SIL_SEC,dur=silDur();
-L.push("Запуск запису: "+SIL_TIME+" (Київ)");L.push("Зв’язок між пристроями: "+(syncES&&syncES.readyState===1?"підключено":"підключення…"));
+L.push("Запуск запису: "+SIL_TIME+" (Київ)");L.push("Зв’язок між пристроями: "+(syncES&&syncES.readyState===1?"підключено":"підключення…"));if(!beepCtx||beepCtx.state!=="running")L.push("🔇 Торкніться екрана, щоб увімкнути звук для тесту");
 if(silActive&&silAuto){var a=silAudio(),ex=sessEp(),d=(a.currentTime-ex)*1000;
 L.push("Позиція за годинником: "+mmss(ex));
 L.push("Позиція звуку: "+(a.paused?"пауза/заблоковано":mmss(a.currentTime)));
@@ -493,7 +493,11 @@ else if(ep<dur)L.push("Запис іде за спільною шкалою: "+m
 else L.push("Запис на сьогодні завершено");
 $("syncInfo").textContent=L.join("\n")}
 var syncTimer=null;
-$("syncBtn").onclick=function(){var p=$("syncPanel");p.hidden=!p.hidden;clearInterval(syncTimer);if(!p.hidden){beepCtxGet();syncListen();syncDraw();syncTimer=setInterval(syncDraw,100)}else{syncUnlisten();beepStop()}};
+function syncOpenPanel(on,byUser){$("syncPanel").hidden=!on;clearInterval(syncTimer);S.syncOpen=!!on;save();
+if(on){if(byUser)beepCtxGet();syncListen();syncDraw();syncTimer=setInterval(syncDraw,100)}else{syncUnlisten();beepStop()}}
+$("syncBtn").onclick=function(){syncOpenPanel($("syncPanel").hidden,true)};
+/* після оновлення сторінки: звук у браузері вмикається першим дотиком, якщо панель відкрита */
+["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(!$("syncPanel").hidden)beepCtxGet()},true)});
 $("syncNow").onclick=function(){toast("Синхронізація…");syncClock()};
 var beepOn=false,beepCtx=null,beepTimer=null,beepFrom=0,beepUntil=0,beepLast=0,syncES=null,seenT={};
 var SYNC_URL="https://ntfy.sh/tryvoha-kissarch-sync-7c41e9"; /* публічний канал ntfy.sh: розсилає сигнал «старт тесту» всім відкритим панелям */
@@ -501,7 +505,8 @@ function beepCtxGet(){var AC=window.AudioContext||window.webkitAudioContext;if(!
 function beepStop(){beepOn=false;clearInterval(beepTimer);$("syncBeep").textContent="🔔 Тест сигналів"}
 function beepTick(){var ms=nowMs();if(ms>beepUntil||silActive){beepStop();return}
 var next=Math.ceil(Math.max(ms,beepFrom)/1000)*1000,delay=(next-ms)/1000;if(next===beepLast||delay>0.6)return;beepLast=next;
-var c=beepCtx,t=c.currentTime+Math.max(0,delay),o=c.createOscillator(),g=c.createGain(),hi=Math.round(next/1000)%10===0;
+var c=beepCtx;if(c.state!=="running"){if(c.resume)c.resume();return}
+var t=c.currentTime+Math.max(0,delay),o=c.createOscillator(),g=c.createGain(),hi=Math.round(next/1000)%10===0;
 o.frequency.value=hi?1500:900;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.4,t+0.005);g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
 o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+0.1)}
 /* t: серверний час (мс), з якого починаються сигнали; сигнали лунають на межах серверних секунд */
@@ -515,6 +520,8 @@ function syncUnlisten(){if(syncES){syncES.close();syncES=null}}
 $("syncAll").onclick=function(){if(silActive){toast("Спершу зупиніть хвилину мовчання");return}if(!beepCtxGet()){toast("Браузер не підтримує тест");return}
 var t=nowMs()+4000;seenT[t]=1;beepPlan(t);
 fetch(SYNC_URL,{method:"POST",body:JSON.stringify({k:"beep",t:t})}).then(function(r){if(!r.ok)throw 0;toast("Надіслано на пристрої з відкритою панеллю")}).catch(function(){toast("Не вдалося надіслати іншим пристроям (ntfy.sh недоступний)")})};
+
+if(S.syncOpen)syncOpenPanel(true,false);
 
 /* white noise */
 function refreshNoise(){var byAlert=mode!=="calm"&&!!S.noisePauseAlert,paused=byAlert||silActive,st=$("noiseSt");
