@@ -248,7 +248,7 @@ var OBL={"м. Київ":["Київ"],"м. Севастополь":["Севаст
 Object.keys(OBL).forEach(function(k){if(k.indexOf("м. ")!==0)OBL[k].unshift("Уся область")});
 /* Адреса Cloudflare Worker, напр. https://tryvoha.ВАШ.workers.dev/proxy/ukrainealarm . Порожньо = лише локальний server.py */
 var PUBLIC_PROXY="https://tryvoha-monitor.developed-project.workers.dev/proxy/ukrainealarm";
-var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:25",silDay:0,sndOn:true,noisePauseAlert:false,noiseVol:50,log:[]};
+var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:25",silDay:0,silRetry:0,silSess:null,sndOn:true,noisePauseAlert:false,noiseVol:50,log:[]};
 try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(raw))}catch(e){}
 if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
 delete S.token;
@@ -320,7 +320,7 @@ var ADM_HASH="8634c1d438ede0418401670daff0b351025744ee27d0fe23c80c8d35f6c62436";
 var GH_EDIT="https://github.com/kiss-archangel/tryvoha-monitor/edit/main/config.json";
 var SIL_FALLBACK=171; /* тривалість, поки не завантажились метадані mp3 */
 var C=2*Math.PI*78;
-var silTotal=60,silT0=0,silAuto=false,silSync=false,silBlocked=false,liveOkAt=0,prePollDay=0;
+var silTotal=60,silT0=0,silStart=0,silAuto=false,silPriv=false,silBlocked=false,liveOkAt=0,prePollDay=0,pageT0=Date.now();
 
 /* --- спільний годинник: серверний час замість годинника пристрою --- */
 var clockOff=0,clockOK=false;
@@ -359,7 +359,10 @@ function silEndSec(){return SIL_SEC<32400?32400:SIL_SEC+60}
 /* стан тривоги з наявного джерела даних (live-опитування або кнопки режимів) */
 function alertActive(){return mode!=="calm"}
 function alertKnown(){return !liveOn||Date.now()-liveOkAt<Math.max(45000,S.interval*3000)}
-function silElapsed(){if(silSync)return Math.max(0,Math.min(globalEp(),silTotal));var a=silAudio();if(a.paused||a.error)return Math.min((Date.now()-silT0)/1000,silTotal);return a.currentTime}
+function sessEp(){return(nowMs()-silStart)/1000} /* скільки секунд минуло від початку запису за спільним (серверним) годинником */
+function clockReady(){return clockOK||Date.now()-pageT0>6000} /* чекаємо серверний час (до 6 с), щоб позиція була точною */
+function silBusy(){return curSnd&&!curSnd.paused&&!curSnd.ended}
+function silElapsed(){if(silAuto)return Math.max(0,Math.min(sessEp(),silTotal));var a=silAudio();if(a.paused||a.error)return Math.min((Date.now()-silT0)/1000,silTotal);return a.currentTime}
 function fmt(t){t=Math.max(0,Math.ceil(t));return pad(Math.floor(t/60))+":"+pad(t%60)}
 function drawSil(){var tot=silActive?silTotal:silLen(),ep=silActive?silElapsed():0;
 $("pg").style.strokeDashoffset=String(C*(1-(silActive?Math.min(1,ep/tot):.29)));
@@ -371,53 +374,74 @@ function playSilAt(off){stopSnd();var a=silAudio();a.loop=false;a.volume=1;curSn
 try{a.currentTime=Math.max(0,off)}catch(e){}
 var p=a.play();if(p&&p.catch)p.catch(function(e){if(e&&e.name==="AbortError")return;silBlocked=true;toast("Торкніться екрана, щоб увімкнути звук");drawSil()});
 a.onerror=function(){toast("Файл assets/minute_of_silence.mp3 не знайдено")}}
-/* sync=true: запуск точно вчасно, звук прив'язаний до спільного годинника; інакше (пізній запуск після відбою) програється з початку */
-function startSil(auto,off,sync){if(silActive)return;off=off||0;silActive=true;silAuto=!!auto;silSync=!!sync;silBlocked=false;silT0=Date.now()-off*1000;silTotal=silDur();var a=silAudio();
+/* auto: startMs = момент (серверний час, мс), якому відповідає 00:00 запису. Вчасний запуск і приєднання: 08:59:25; після відбою (priv): момент запуску */
+function startSil(auto,startMs,priv){if(silActive)return;silActive=true;silAuto=!!auto;silPriv=!!priv;silBlocked=false;silStart=auto?startMs:0;
+var off=auto?Math.max(0,sessEp()):0;silT0=Date.now()-off*1000;silTotal=silDur();var a=silAudio();
+if(auto){S.silSess={day:kyivNow().day,t0:silStart,priv:!!priv};save()}
 playSilAt(off);
-a.onloadedmetadata=function(){if(silActive){silTotal=silDur();if(silSync){try{a.currentTime=Math.max(0,globalEp())}catch(e){}}}};
+a.onloadedmetadata=function(){if(silActive){silTotal=silDur();if(silAuto){try{a.currentTime=Math.max(0,sessEp())}catch(e){}}}};
 a.onended=function(){if(silActive)stopSil(true)};
-addLog(auto?(silSync?"Автозапуск хвилини мовчання":"Запуск хвилини мовчання після відбою тривоги"):"Хвилину мовчання запущено");
+addLog(auto?(priv?"Запуск хвилини мовчання після відбою тривоги":(off>3?"Приєднання до хвилини мовчання (+"+Math.round(off)+" с)":"Автозапуск хвилини мовчання")):"Хвилину мовчання запущено");
 refreshNoise();drawSil();
 silTimer=setInterval(silStep,200)}
 function silStep(){var a=silAudio();
 if(silAuto&&alertActive()){silOnAlert();return}
-if(silAuto&&silBlocked&&kyivNow().sec>=silEndSec()){stopSil(false);return} /* звук так і не дозволили до 09:00: скасовано */
-if(silSync){var ep=globalEp();
+if(silAuto&&silPriv&&silBlocked&&kyivNow().sec>=silEndSec()){stopSil(false);return} /* запуск після відбою не встиг до 09:00:00: скасовано */
+if(silAuto){var ep=sessEp();
 if(ep>=silTotal-0.05){stopSil(true);return}
 /* корекція дрейфу: звук завжди відповідає спільному годиннику */
 if(!silBlocked&&!a.error&&!a.paused&&Math.abs(a.currentTime-Math.max(0,ep))>0.2){try{a.currentTime=Math.max(0,ep)}catch(e){}}
 }else if(silElapsed()>=silTotal-0.05&&(a.paused||a.error)){stopSil(true);return}
 drawSil()}
-/* interrupted=true: перервано тривогою, день не вважається відтвореним */
-function stopSil(done,interrupted){if(!silActive)return;clearInterval(silTimer);silActive=false;silAuto=false;silSync=false;silBlocked=false;
+/* interrupted=true: перервано тривогою, день не вважається відтвореним (буде повтор з початку після відбою, якщо раніше 09:00:00) */
+function stopSil(done,interrupted){if(!silActive)return;clearInterval(silTimer);var wasAuto=silAuto;silActive=false;silAuto=false;silPriv=false;silBlocked=false;
 var au=silAudio();try{au.pause()}catch(e){}if(curSnd===au)curSnd=null;
 au.onended=null;au.onloadedmetadata=null;
-if(interrupted){S.silDay=0;save()}
+if(wasAuto){var d=kyivNow().day;S.silSess=null;if(interrupted){S.silDay=0;S.silRetry=d}else S.silDay=d;save()}
 addLog(interrupted?"Хвилину мовчання перервано: повітряна тривога":(done?"Хвилину мовчання завершено":"Хвилину мовчання зупинено"));refreshNoise();drawSil()}
 /* тривога під час автозапуску: негайна зупинка */
 function silOnAlert(){if(silActive&&silAuto)stopSil(false,true)}
 $("silBtn").onclick=function(){silActive?stopSil(false):startSil(false,0,false)};
 silAudio().addEventListener("loadedmetadata",function(){if(!silActive)drawSil()});
 
-/* --- автозапуск за правилами ---
- 1) від SIL_TIME (08:59:25 Київ) до 09:00:00; 2) під час тривоги не стартує; 3) після відбою стартує з початку, якщо ще раніше 09:00:00;
- 4) з 09:00:00 на цей день скасовується; 5) S.silDay (зберігається в браузері) не дає запустити вдруге протягом дня. */
+/* --- автозапуск ---
+ Єдина часова шкала: 00:00 запису = SIL_TIME (08:59:25 Київ) за серверним годинником. Хто завантажив або оновив сторінку під час запису,
+ приєднується з потрібної секунди; після завершення запису автозапуску немає.
+ Тривога: на старті не стартуємо; під час запису негайно зупиняємо; після відбою до 09:00:00 запускаємо з початку, з 09:00:00 цей день скасовано.
+ Стан дня зберігається в браузері (S.silDay / S.silSess / S.silRetry), тож повторного запуску протягом дня немає. */
 setInterval(function(){if(!S.silOn||silActive)return;var k=kyivNow();if(S.silDay===k.day)return;
-var ep=k.sec-SIL_SEC;
+var ep=k.sec-SIL_SEC,dur=silDur();
 if(ep<0){ /* за кілька секунд до запуску оновлюємо дані про тривоги */
 if(ep>-12&&prePollDay!==k.day&&liveOn){prePollDay=k.day;poll()}return}
-if(k.sec>=silEndSec()){S.silDay=k.day;save();return} /* 09:00:00 минуло: на сьогодні скасовано */
-if(!alertKnown()||alertActive())return; /* тривога (або немає свіжих даних): чекаємо відбою */
-if(curSnd&&!curSnd.paused&&!curSnd.ended)return; /* дограє звук відбою/тривоги */
-S.silDay=k.day;save();
-startSil(true,ep<3?ep:0,ep<3)},100);
-/* якщо браузер заблокував автозвук: перший дотик вмикає звук (вчасний запуск: із правильної секунди, пізній: з початку) */
-["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(silActive&&silBlocked){silBlocked=false;if(silSync)playSilAt(globalEp());else{silT0=Date.now();playSilAt(0)}drawSil()}},true)});
+if(!clockReady())return;
+var sess=(S.silSess&&S.silSess.day===k.day)?S.silSess:null,retry=(S.silRetry===k.day);
+if(sess){ /* оновлення сторінки під час відтворення: продовжуємо з потрібної секунди */
+var el=(nowMs()-sess.t0)/1000;
+if(el>=dur){S.silSess=null;S.silDay=k.day;save();return}
+if(!alertKnown())return;
+if(alertActive()){S.silSess=null;S.silRetry=k.day;save();return}
+if(silBusy())return;
+startSil(true,sess.t0,!!sess.priv);return}
+if(retry){ /* було перервано тривогою: після відбою, якщо ще раніше 09:00:00, стартуємо з початку */
+if(k.sec>=silEndSec()){S.silDay=k.day;save();return}
+if(!alertKnown()||alertActive()||silBusy())return;
+startSil(true,nowMs(),true);return}
+if(ep>=dur){S.silDay=k.day;save();return} /* запис уже закінчився: не запускаємо */
+if(!alertKnown())return;
+if(alertActive()){if(k.sec>=silEndSec())S.silDay=k.day;else S.silRetry=k.day;save();return} /* тривога: до відбою не стартуємо */
+if(silBusy())return;
+startSil(true,nowMs()-ep*1000,false)},100);
+/* якщо браузер заблокував автозвук: перший дотик вмикає звук із поточної секунди (після відбою: з початку) */
+["pointerdown","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,function(){if(silActive&&silBlocked){silBlocked=false;
+if(silAuto&&silPriv){silStart=nowMs();S.silSess={day:kyivNow().day,t0:silStart,priv:true};save();silT0=Date.now();playSilAt(0)}
+else if(silAuto)playSilAt(sessEp());
+else{silT0=Date.now();playSilAt(0)}
+drawSil()}},true)});
 syncClock();
 
 /* --- спільний час запуску: файл config.json у репозиторії; змінює той, хто може його редагувати на GitHub --- */
 function applySil(t){t=nt(t);if(t===SIL_TIME)return;var wasAuto=silActive&&silAuto;SIL_TIME=t;SIL_SEC=parseT(t);S.silG=t;save();
-if(wasAuto)stopSil(false);S.silDay=0;save();$("silFixed").textContent=SIL_TIME+" (Київ)";if($("admPanel").hidden)$("silTime").value=SIL_TIME;drawSil()}
+if(wasAuto)stopSil(false);S.silDay=0;S.silSess=null;S.silRetry=0;save();$("silFixed").textContent=SIL_TIME+" (Київ)";if($("admPanel").hidden)$("silTime").value=SIL_TIME;drawSil()}
 function fetchSil(){if(location.protocol==="file:")return;fetch("config.json?_="+Date.now(),{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&SIL_RE.test(j.silTime||""))applySil(j.silTime)}).catch(function(){})}
 setInterval(fetchSil,30000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)fetchSil()});
