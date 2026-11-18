@@ -201,7 +201,7 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
     </div>
     <button class="btn sm" id="silTest">🔔 Тест звуку</button>
     <button class="btn sm" id="syncBtn" hidden>🔍 Перевірка синхронності</button>
-    <div class="row field" style="margin-top:12px"><span style="color:var(--fg)">Показувати мене в списку підключених</span><button class="sw" id="presSw" role="switch" aria-checked="true" aria-label="Показувати мене в списку підключених"></button></div>
+    <div class="st" style="margin-top:12px">Адміністратор бачить анонімну інформацію про відкриті екземпляри сайту: тип пристрою, браузер, систему, мову, часовий пояс і випадковий номер. IP-адреса не збирається.</div>
     <div id="syncPanel" hidden style="margin-top:12px">
       <div id="syncClockBig" style="font-size:30px;font-weight:700;font-variant-numeric:tabular-nums">--:--:--.---</div>
       <div class="st" style="margin:2px 0 8px">Київський час за спільним годинником. Відкрийте цю панель на двох пристроях поруч: цифри мають збігатися.</div>
@@ -213,11 +213,12 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
   <div class="card panel" id="presCard" style="display:none"><h3>👥 Підключені користувачі</h3>
     <div id="presCount" style="font-weight:700;margin:4px 0"></div>
     <div id="presList" class="st" style="max-height:320px;overflow:auto;margin-bottom:8px"></div>
-    <div class="st">У списку ті, хто тримає сайт відкритим (оновлюється приблизно раз на 2 хв; хто закрив сайт, зникає за ~5 хв). Передається лише анонімна інформація про пристрій. IP-адреси інших користувачів не збираються й не показуються: це їхні приватні дані.</div>
+    <div class="st">У списку ті, хто тримає сайт відкритим (оновлюється приблизно раз на 2 хв; хто закрив сайт, зникає за ~5 хв). Передається лише анонімна інформація про пристрій. IP-адреси інших користувачів не збираються й не показуються: це їхні приватні дані. Кожен пристрій має випадковий постійний номер (#…), нікнейми призначаєте ви кнопкою «🏷️ Нікнейм»; вони зберігаються лише в цьому браузері й користувачі їх не бачать.</div>
+    <div class="chips" style="margin:8px 0"><button class="btn sm" id="nickExp">📋 Експорт нікнеймів</button><button class="btn sm" id="nickImp">📥 Імпорт</button><button class="btn sm" id="bkSave">💾 Резервна копія</button><button class="btn sm" id="bkLoad">📂 Відновити з копії</button><input type="file" id="bkFile" accept="application/json,.json" hidden></div>
     <div class="row" style="margin:14px 0 4px"><h3 style="margin:0">🕘 Історія підключень</h3><button class="btn sm" id="presHistClear">Очистити</button></div>
     <div id="presHistInfo" class="st" style="margin-bottom:4px"></div>
     <div id="presHist" class="st" style="max-height:320px;overflow:auto"></div>
-    <div class="st" style="margin-top:6px">Історія зберігається в цьому браузері й наповнюється, поки ви розблокували адмін-доступ (одразу після розблокування підтягуються події за останні ~6 хв). Що відбувалося, коли вас не було, тут не видно. Час київський.</div>
+    <div class="st" style="margin-top:6px">Історія пишеться, поки сайт відкритий у цьому браузері з адмін-доступом (він запам’ятовується); при відкритті підтягуються події за останні 12 год. Якщо сайт довго не відкривався, цей проміжок буде порожнім. Нікнейми й історію захищає кнопка «Резервна копія»: робіть її час від часу. Час київський.</div>
   </div>
   <div class="card panel"><h3>Звуки тривоги</h3>
     <div class="row field"><span style="color:var(--fg)">Звук при тривозі</span><button class="sw" id="sndOn" role="switch" aria-checked="true" aria-label="Звук"></button></div>
@@ -269,7 +270,7 @@ var OBL={"м. Київ":["Київ"],"м. Севастополь":["Севаст
 Object.keys(OBL).forEach(function(k){if(k.indexOf("м. ")!==0)OBL[k].unshift("Уся область")});
 /* Адреса Cloudflare Worker, напр. https://tryvoha.ВАШ.workers.dev/proxy/ukrainealarm . Порожньо = лише локальний server.py */
 var PUBLIC_PROXY="https://tryvoha-monitor.developed-project.workers.dev/proxy/ukrainealarm";
-var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:25",silDay:0,silRetry:0,silSess:null,syncOpen:false,presOn:true,sndOn:true,noisePauseAlert:false,noiseVol:50,log:[]};
+var S={oblast:"Рівненська область",raion:"Рівненський",air:true,interval:10,proxy:"",provider:"ukrainealarm",redPreset:"mix",tokEnc:"",silOn:true,silTime:"08:59:25",silDay:0,silRetry:0,silSess:null,syncOpen:false,sndOn:true,noisePauseAlert:false,noiseVol:50,log:[]};
 try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(raw))}catch(e){}
 if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
 delete S.token;
@@ -468,17 +469,17 @@ setInterval(fetchSil,30000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)fetchSil()});
 function sha256hex(str){if(!(window.crypto&&crypto.subtle))return Promise.reject();return crypto.subtle.digest("SHA-256",new TextEncoder().encode(str)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return("0"+x.toString(16)).slice(-2)}).join("")})}
 var admOn=false;
-function admUI(on){admOn=!!on;$("admLock").hidden=!on;$("admState").textContent=on?"✅ Адмін-доступ відкрито: нижче доступні час запуску хвилини мовчання, підключені користувачі, історія та перевірка синхронності.":"Розблокуйте, щоб змінити час хвилини мовчання, бачити підключених користувачів та їхню історію, робити перевірку синхронності.";$("presCard").style.display=on?"":"none";if(on)syncListen();else syncUnlisten();$("syncBtn").hidden=!on;$("syncAll").hidden=!on;if(!on&&!$("syncPanel").hidden){var keep=S.syncOpen;syncOpenPanel(false);S.syncOpen=keep;save()}if(on&&S.syncOpen&&$("syncPanel").hidden)syncOpenPanel(true,true);$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";$("admLink").hidden=true;if(on)$("silTime").value=SIL_TIME;syncPresets()}
+function admUI(on){admOn=!!on;$("admLock").hidden=!on;$("admState").textContent=on?"✅ Адмін-доступ відкрито (запам’ятовується в цьому браузері): нижче доступні час запуску хвилини мовчання, підключені користувачі, історія та перевірка синхронності.":"Розблокуйте, щоб змінити час хвилини мовчання, бачити підключених користувачів та їхню історію, робити перевірку синхронності.";$("presCard").style.display=on?"":"none";if(on)syncListen();else syncUnlisten();$("syncBtn").hidden=!on;$("syncAll").hidden=!on;if(!on&&!$("syncPanel").hidden){var keep=S.syncOpen;syncOpenPanel(false);S.syncOpen=keep;save()}if(on&&S.syncOpen&&$("syncPanel").hidden)syncOpenPanel(true,true);$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";$("admLink").hidden=true;if(on)$("silTime").value=SIL_TIME;syncPresets()}
 function syncPresets(){var v=nt($("silTime").value);document.querySelectorAll("#presets button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===v)})}
 $("silTime").oninput=syncPresets;
 document.querySelectorAll("#presets button").forEach(function(b){b.onclick=function(){$("silTime").value=b.dataset.t;syncPresets()}});
 $("admUnlock").onclick=function(){$("admForm").hidden=false;$("admPw").focus()};
 function admShake(){var b=$("admForm");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake")}
 function admTry(){var pw=$("admPw").value;if(!pw)return;
-sha256hex(pw).then(function(h){if(h===ADM_HASH){admUI(true);toast("Розблоковано")}else{$("admPw").value="";admShake();toast("Невірний пароль")}}).catch(function(){toast("Потрібне https-з’єднання для перевірки пароля")})}
+sha256hex(pw).then(function(h){if(h===ADM_HASH){try{localStorage.setItem("tryvoha_adm",ADM_HASH)}catch(e){}try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}admUI(true);toast("Розблоковано")}else{$("admPw").value="";admShake();toast("Невірний пароль")}}).catch(function(){toast("Потрібне https-з’єднання для перевірки пароля")})}
 $("admGo").onclick=admTry;
 $("admPw").addEventListener("keydown",function(e){if(e.key==="Enter")admTry()});
-$("admLock").onclick=function(){admUI(false);toast("Заблоковано")};
+$("admLock").onclick=function(){try{localStorage.removeItem("tryvoha_adm")}catch(e){}admUI(false);toast("Заблоковано")};
 $("silSave").onclick=function(){var v=$("silTime").value;if(!v){toast("Вкажіть час");return}v=nt(v);
 var txt=JSON.stringify({silTime:v},null,2)+"\n",l=$("admLink");l.href=GH_EDIT;l.hidden=false;
 var done=function(){toast("Скопійовано. Вставте у файл на GitHub і натисніть Commit");try{window.open(GH_EDIT,"_blank")}catch(e){}};
@@ -528,20 +529,23 @@ o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+0.1)}
 /* t: серверний час (мс), з якого починаються сигнали; сигнали лунають на межах серверних секунд */
 function beepPlan(t){if(silActive||!beepCtxGet())return;beepFrom=t;beepUntil=t+30000;beepLast=0;beepOn=true;$("syncBeep").textContent="⏹ Зупинити тест";clearInterval(beepTimer);beepTimer=setInterval(beepTick,100);toast("Тест сигналів: старт через "+Math.max(0,Math.round((t-nowMs())/1000))+" с")}
 $("syncBeep").onclick=function(){if(beepOn){beepStop();return}if(silActive){toast("Спершу зупиніть хвилину мовчання");return}beepPlan(nowMs()+1000)};
+var ntfyLast=0,syncRetry=null;
 function syncListen(){if(syncES||typeof EventSource==="undefined")return;
-try{syncES=new EventSource(SYNC_URL+"/sse?since=6m")}catch(e){syncES=null;return}
-syncES.onmessage=function(e){var j,m;try{j=JSON.parse(e.data)}catch(x){return}if(!j||j.event!=="message")return;try{m=JSON.parse(j.message)}catch(x){return}
+try{syncES=new EventSource(SYNC_URL+"/sse?since="+(ntfyLast?ntfyLast:"12h"))}catch(e){syncES=null;return}
+syncES.onmessage=function(e){var j,m;try{j=JSON.parse(e.data)}catch(x){return}if(!j||j.event!=="message")return;if(j.time>ntfyLast)ntfyLast=j.time;try{m=JSON.parse(j.message)}catch(x){return}
 if(m&&(m.k==="hb"||m.k==="bye")){presIn(j,m);return}
-if(!m||m.k!=="beep"||!isFinite(m.t)||seenT[m.t])return;var d=m.t-nowMs();if(d<-1500||d>30000)return;seenT[m.t]=1;beepPlan(m.t)}}
-function syncUnlisten(){if(syncES){syncES.close();syncES=null}}
+if(!m||m.k!=="beep"||!isFinite(m.t)||seenT[m.t])return;var d=m.t-nowMs();if(d<-1500||d>30000)return;seenT[m.t]=1;beepPlan(m.t)};
+/* обрив зв'язку: перепідключаємось і догружаємо пропущене з моменту останнього повідомлення */
+syncES.onerror=function(){if(syncES){syncES.close();syncES=null}clearTimeout(syncRetry);if(admOn||!$("syncPanel").hidden)syncRetry=setTimeout(syncListen,5000)}}
+function syncUnlisten(){clearTimeout(syncRetry);if(syncES){syncES.close();syncES=null}}
 $("syncAll").onclick=function(){if(silActive){toast("Спершу зупиніть хвилину мовчання");return}if(!beepCtxGet()){toast("Браузер не підтримує тест");return}
 var t=nowMs()+4000;seenT[t]=1;beepPlan(t);
 fetch(SYNC_URL,{method:"POST",body:JSON.stringify({k:"beep",t:t})}).then(function(r){if(!r.ok)throw 0;toast("Надіслано на пристрої з відкритою панеллю")}).catch(function(){toast("Не вдалося надіслати іншим пристроям (ntfy.sh недоступний)")})};
 
 /* --- список підключених (анонімно) --- */
 var presRenderAt=0,presTimer=null,presPause=0,peers={};
-var PRES_ID=(function(){try{var v=sessionStorage.getItem("tryvoha_pid");if(!v){v=Math.random().toString(16).slice(2,8);sessionStorage.setItem("tryvoha_pid",v)}return v}catch(e){return Math.random().toString(16).slice(2,8)}})();
-function presEnabled(){return S.presOn!==false&&location.protocol!=="file:"}
+var PRES_ID=(function(){try{var v=localStorage.getItem("tryvoha_pid");if(!v||!/^[0-9a-f]{6,12}$/.test(v)){v=Math.random().toString(16).slice(2,10);localStorage.setItem("tryvoha_pid",v)}return v}catch(e){return Math.random().toString(16).slice(2,10)}})(); /* випадковий постійний номер пристрою (не IP, не ім'я) */
+function presEnabled(){return location.protocol!=="file:"}
 function presInfo(){var u=navigator.userAgent,b="?",m;
 if(m=u.match(/Edg\/(\d+)/))b="Edge "+m[1];else if(m=u.match(/OPR\/(\d+)/))b="Opera "+m[1];else if(m=u.match(/Firefox\/(\d+)/))b="Firefox "+m[1];else if(m=u.match(/(?:Chrome|CriOS)\/(\d+)/))b="Chrome "+m[1];else if(m=u.match(/Version\/(\d+).*Safari/))b="Safari "+m[1];
 var os=/Windows/.test(u)?"Windows":/Android/.test(u)?"Android":/iPhone|iPad|iPod/.test(u)?"iOS":/Mac OS X/.test(u)?"macOS":/Linux/.test(u)?"Linux":"?";
@@ -554,26 +558,40 @@ function presBye(){try{if(navigator.sendBeacon)navigator.sendBeacon(SYNC_URL,JSO
 function presStart(){clearInterval(presTimer);if(presEnabled()){setTimeout(presSend,3000);presTimer=setInterval(presSend,120000)}}
 document.addEventListener("visibilitychange",function(){if(!document.hidden)presSend()});
 addEventListener("pagehide",function(){if(presEnabled())presBye()});
-tog($("presSw"),function(v){S.presOn=v;save();clearInterval(presTimer);if(v)presStart();else presBye();presRender()});
-sw($("presSw"),S.presOn!==false);
 function cl(v,n){return String(v==null?"":v).replace(/[\u0000-\u001f<>]/g,"").slice(0,n)}
+/* --- нікнейми, які призначає адміністратор (зберігаються лише в цьому браузері) --- */
+var NK="tryvoha_nicks_v1",nicks={};
+try{var nv=JSON.parse(localStorage.getItem(NK)||"{}");if(nv&&typeof nv==="object")Object.keys(nv).forEach(function(k){var v=cl(nv[k],24).trim();if(v)nicks[cl(k,12)]=v})}catch(e){}
+function nickOf(id){return nicks[id]||""}
+function nickSave(){try{localStorage.setItem(NK,JSON.stringify(nicks))}catch(e){}}
+function nickEdit(id){var v=prompt("Нікнейм для пристрою #"+id+" (порожньо — прибрати):",nickOf(id));if(v===null)return;v=cl(v,24).trim();if(v)nicks[id]=v;else delete nicks[id];nickSave();presRenderAt=0;presRender()}
+$("nickExp").onclick=function(){var t=JSON.stringify(nicks);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast("Нікнейми скопійовано")}).catch(function(){prompt("Скопіюйте:",t)});else prompt("Скопіюйте:",t)};
+$("nickImp").onclick=function(){var t=prompt("Вставте JSON з нікнеймами:");if(!t)return;try{var o=JSON.parse(t);Object.keys(o).forEach(function(k){var v=cl(o[k],24).trim();if(v)nicks[cl(k,12)]=v});nickSave();presRender();toast("Імпортовано")}catch(e){toast("Невірний формат")}};
 /* --- історія підключень (зберігається в цьому браузері) --- */
-var HK="tryvoha_hist_v1",hist=[],histT=0;
-try{var hv=JSON.parse(localStorage.getItem(HK)||"[]");if(Array.isArray(hv))hist=hv.filter(function(e){return e&&e.id&&isFinite(e.first)&&isFinite(e.last)}).slice(-300)}catch(e){}
-function histTouch(){if(histT)return;histT=setTimeout(function(){histT=0;try{localStorage.setItem(HK,JSON.stringify(hist.slice(-300)))}catch(e){}},3000)}
+var HK="tryvoha_hist_v1",hist=[],histT=0,HMAX=2000;
+try{var hv=JSON.parse(localStorage.getItem(HK)||"[]");if(Array.isArray(hv))hist=hv.filter(function(e){return e&&e.id&&isFinite(e.first)&&isFinite(e.last)}).slice(-HMAX)}catch(e){}
+function histTouch(){if(histT)return;histT=setTimeout(function(){histT=0;try{localStorage.setItem(HK,JSON.stringify(hist.slice(-HMAX)))}catch(e){}},3000)}
 function histLast(id){for(var i=hist.length-1;i>=Math.max(0,hist.length-120);i--)if(hist[i].id===id)return hist[i];return null}
 function histNote(id,d,t,bye){var e=histLast(id);
 if(bye){if(e&&!e.end&&t>=e.first){e.end=Math.max(t,e.last);histTouch()}return}
 if(e&&t<=e.last)return; /* вже враховано (повтор при підключенні до каналу) */
 if(e&&!e.end&&t-e.last<=330000){e.last=t;histTouch();return}
-hist.push({id:id,dev:d.dev,ua:d.ua,os:d.os,lang:d.lang,tz:d.tz,scr:d.scr,first:t,last:t});if(hist.length>300)hist.shift();histTouch()}
+hist.push({id:id,dev:d.dev,ua:d.ua,os:d.os,lang:d.lang,tz:d.tz,scr:d.scr,first:t,last:t});if(hist.length>HMAX)hist.shift();histTouch()}
 function histSweep(now){var ch=false;hist.forEach(function(e){if(!e.end&&now-e.last>330000){e.end=e.last;ch=true}});if(ch)histTouch()}
 function fmtK(ms){var d=new Date(ms+kyivOff(ms));return pad(d.getUTCDate())+"."+pad(d.getUTCMonth()+1)+" "+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())+":"+pad(d.getUTCSeconds())}
 function durT(ms){var m=Math.round(ms/60000);return m<1?"<1 хв":(m<60?m+" хв":Math.floor(m/60)+" год "+(m%60)+" хв")}
 function presHistRender(now){var box=$("presHist"),info=$("presHistInfo");if(!box||!info)return;histSweep(now);
-info.textContent="Записів у журналі: "+hist.length+" (показано останні 60)";box.textContent="";
-hist.slice(-60).reverse().forEach(function(e){var on=!e.end&&now-e.last<=330000;
-presRow(box,fmtK(e.first)+" · "+e.dev+" "+e.ua+" · "+e.os+" · #"+e.id,[e.lang,e.tz,e.scr,on?"🟢 онлайн, на сайті "+durT(now-e.first):"вийшов "+fmtK(e.end||e.last)+" · був "+durT((e.end||e.last)-e.first)].filter(Boolean).join(" · "))})}
+info.textContent="Записів у журналі: "+hist.length+" (показано останні 100)";box.textContent="";
+hist.slice(-100).reverse().forEach(function(e){var on=!e.end&&now-e.last<=330000;
+presRow(box,fmtK(e.first)+" · "+(nickOf(e.id)?"🏷️ "+nickOf(e.id)+" — ":"")+e.dev+" "+e.ua+" · "+e.os+" · #"+e.id,[e.lang,e.tz,e.scr,on?"🟢 онлайн, на сайті "+durT(now-e.first):"вийшов "+fmtK(e.end||e.last)+" · був "+durT((e.end||e.last)-e.first)].filter(Boolean).join(" · "),e.id)})}
+$("bkSave").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({v:1,at:Date.now(),nicks:nicks,hist:hist})],{type:"application/json"}));a.download="tryvoha-admin-backup.json";document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)};
+$("bkLoad").onclick=function(){$("bkFile").click()};
+$("bkFile").onchange=function(){var f=this.files&&this.files[0],inp=this;if(!f)return;var r=new FileReader();r.onload=function(){try{var o=JSON.parse(r.result);
+if(o.nicks&&typeof o.nicks==="object")Object.keys(o.nicks).forEach(function(k){var v=cl(o.nicks[k],24).trim();if(v)nicks[cl(k,12)]=v});nickSave();
+if(Array.isArray(o.hist)){var have={};hist.forEach(function(e){have[e.id+"|"+e.first]=1});
+o.hist.forEach(function(e){if(e&&e.id&&isFinite(e.first)&&isFinite(e.last)&&!have[cl(e.id,12)+"|"+e.first])hist.push({id:cl(e.id,12),dev:cl(e.dev,4),ua:cl(e.ua,24),os:cl(e.os,16),lang:cl(e.lang,12),tz:cl(e.tz,32),scr:cl(e.scr,12),first:+e.first,last:+e.last,end:e.end?+e.end:undefined})});
+hist.sort(function(a,b){return a.first-b.first});if(hist.length>HMAX)hist=hist.slice(-HMAX);histTouch()}
+presRender();toast("Відновлено з копії")}catch(x){toast("Невірний файл")}};r.readAsText(f);inp.value=""};
 $("presHistClear").onclick=function(){if(confirm("Очистити історію підключень?")){hist=[];try{localStorage.removeItem(HK)}catch(e){}presRender()}};
 function presIn(j,m){var id=cl(m.id,12);if(!id||id===PRES_ID)return;
 if(m.k==="bye"){delete peers[id];histNote(id,null,(+j.time||0)*1000,true);return}
@@ -581,17 +599,20 @@ var t=(+j.time||0)*1000;if(!t)return;
 var d={dev:cl(m.dev,4),ua:cl(m.ua,24),os:cl(m.os,16),lang:cl(m.lang,12),tz:cl(m.tz,32),scr:cl(m.scr,12),st:cl(m.st,28),up:Math.max(0,+m.up||0),off:+m.off||0};
 histNote(id,d,t,false);if(peers[id]&&peers[id].t>t)return;
 peers[id]={t:t,d:d};presRenderAt=0}
-function presRow(box,title,sub){var d=document.createElement("div");d.style.cssText="padding:6px 0;border-top:1px solid rgba(128,128,128,.25)";
-var a=document.createElement("div");a.textContent=title;a.style.fontWeight="600";var b=document.createElement("div");b.className="st";b.textContent=sub;d.appendChild(a);d.appendChild(b);box.appendChild(d)}
+function presRow(box,title,sub,id){var d=document.createElement("div");d.style.cssText="padding:6px 0;border-top:1px solid rgba(128,128,128,.25)";
+var a=document.createElement("div");a.style.fontWeight="600";var tt=document.createElement("span");tt.textContent=title;a.appendChild(tt);
+if(id){var bt=document.createElement("button");bt.className="btn sm";bt.textContent=nickOf(id)?"✏️":"🏷️ Нікнейм";bt.style.marginLeft="8px";bt.onclick=function(){nickEdit(id)};a.appendChild(bt)}
+var b=document.createElement("div");b.className="st";b.textContent=sub;d.appendChild(a);d.appendChild(b);box.appendChild(d)}
 function presRender(){var cnt=$("presCount"),box=$("presList");if(!cnt||!box||$("presCard").style.display==="none")return;
 var now=nowMs(),ids=Object.keys(peers).filter(function(id){return now-peers[id].t<330000}).sort(function(a,b){return peers[a].d.up-peers[b].d.up}).reverse();
-cnt.textContent="👥 Підключено: "+(ids.length+1)+(presEnabled()?"":" (ви не показуєте себе іншим)")+" · канал: "+(syncES&&syncES.readyState===1?"підключено":"підключення…");
+cnt.textContent="👥 Підключено: "+(ids.length+1)+" · канал: "+(syncES&&syncES.readyState===1?"підключено":"підключення…");
 box.textContent="";var me=presInfo();
-presRow(box,me.dev+" "+me.ua+" · "+me.os+" (це ви)",[me.lang,me.tz,me.scr,me.st,"на сайті "+Math.max(1,Math.round(me.up/60))+" хв","годинник пристрою "+f3(clockOff/-1000)+" с"].filter(Boolean).join(" · "));
+presRow(box,(nickOf(PRES_ID)?"🏷️ "+nickOf(PRES_ID)+" — ":"")+me.dev+" "+me.ua+" · "+me.os+" (це ви)",[me.lang,me.tz,me.scr,me.st,"на сайті "+Math.max(1,Math.round(me.up/60))+" хв","годинник пристрою "+f3(clockOff/-1000)+" с"].filter(Boolean).join(" · "),PRES_ID);
 ids.slice(0,100).forEach(function(id){var d=peers[id].d,up=d.up+Math.max(0,(now-peers[id].t)/1000);
-presRow(box,d.dev+" "+d.ua+" · "+d.os+" · #"+id,[d.lang,d.tz,d.scr,d.st,"на сайті "+Math.max(1,Math.round(up/60))+" хв","годинник пристрою "+f3(d.off/-1000)+" с"].filter(Boolean).join(" · "))});presHistRender(now)}
+presRow(box,(nickOf(id)?"🏷️ "+nickOf(id)+" — ":"")+d.dev+" "+d.ua+" · "+d.os+" · #"+id,[d.lang,d.tz,d.scr,d.st,"на сайті "+Math.max(1,Math.round(up/60))+" хв","годинник пристрою "+f3(d.off/-1000)+" с"].filter(Boolean).join(" · "),id)});presHistRender(now)}
 
 presStart();setInterval(presRender,2000);
+try{if(localStorage.getItem("tryvoha_adm")===ADM_HASH)admUI(true)}catch(e){}
 
 /* white noise */
 function refreshNoise(){var byAlert=mode!=="calm"&&!!S.noisePauseAlert,paused=byAlert||silActive,st=$("noiseSt");
