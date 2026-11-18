@@ -202,8 +202,8 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
       <div id="syncClockBig" style="font-size:30px;font-weight:700;font-variant-numeric:tabular-nums">--:--:--.---</div>
       <div class="st" style="margin:2px 0 8px">Київський час за спільним годинником. Відкрийте цю панель на двох пристроях поруч: цифри мають збігатися.</div>
       <div class="st" id="syncInfo" style="white-space:pre-line;margin-bottom:10px;font-variant-numeric:tabular-nums"></div>
-      <div class="chips"><button class="btn sm" id="syncNow">🔄 Синхронізувати зараз</button><button class="btn sm" id="syncBeep">🔔 Тест сигналів</button></div>
-      <div class="st" style="margin-top:8px">«Тест сигналів»: 30 с короткі сигнали щосекунди точно за спільним годинником (кожен десятий вищий). На двох пристроях вони мають лунати разом. Bluetooth-навушники додають власну затримку.</div>
+      <div class="chips"><button class="btn sm" id="syncNow">🔄 Синхронізувати зараз</button><button class="btn sm" id="syncBeep">🔔 Тест сигналів</button><button class="btn sm" id="syncAll" hidden>📡 Запустити на всіх</button></div>
+      <div class="st" style="margin-top:8px">«Тест сигналів»: 30 с коротких сигналів щосекунди точно за спільним годинником (кожен десятий вищий). «Запустити на всіх» (після розблокування адміна): через 4 с сигнали стартують одночасно на всіх пристроях, де відкрита ця панель. Bluetooth-навушники додають власну затримку.</div>
     </div>
   </div>
   <div class="card panel"><h3>Звуки тривоги</h3>
@@ -454,7 +454,7 @@ function fetchSil(){if(location.protocol==="file:")return;fetch("config.json?_="
 setInterval(fetchSil,30000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)fetchSil()});
 function sha256hex(str){if(!(window.crypto&&crypto.subtle))return Promise.reject();return crypto.subtle.digest("SHA-256",new TextEncoder().encode(str)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return("0"+x.toString(16)).slice(-2)}).join("")})}
-function admUI(on){$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";$("admLink").hidden=true;if(on)$("silTime").value=SIL_TIME;syncPresets()}
+function admUI(on){$("syncAll").hidden=!on;$("admPanel").hidden=!on;$("admUnlock").hidden=on;$("admForm").hidden=true;$("admPw").value="";$("admLink").hidden=true;if(on)$("silTime").value=SIL_TIME;syncPresets()}
 function syncPresets(){var v=nt($("silTime").value);document.querySelectorAll("#presets button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===v)})}
 $("silTime").oninput=syncPresets;
 document.querySelectorAll("#presets button").forEach(function(b){b.onclick=function(){$("silTime").value=b.dataset.t;syncPresets()}});
@@ -482,7 +482,7 @@ L.push("Зсув годинника пристрою: "+(clockOK?f3(clockOff/100
 if(clockInfo){L.push("Джерело часу: "+clockInfo.src);L.push("Затримка мережі: "+Math.round(clockInfo.r)+" мс");L.push("Остання синхронізація: "+Math.round((Date.now()-clockInfo.at)/1000)+" с тому")}
 else L.push("Джерело часу: годинник пристрою (серверний час недоступний)");
 var ep=sec-SIL_SEC,dur=silDur();
-L.push("Запуск запису: "+SIL_TIME+" (Київ)");
+L.push("Запуск запису: "+SIL_TIME+" (Київ)");L.push("Зв’язок між пристроями: "+(syncES&&syncES.readyState===1?"підключено":"підключення…"));
 if(silActive&&silAuto){var a=silAudio(),ex=sessEp(),d=(a.currentTime-ex)*1000;
 L.push("Позиція за годинником: "+mmss(ex));
 L.push("Позиція звуку: "+(a.paused?"пауза/заблоковано":mmss(a.currentTime)));
@@ -493,22 +493,28 @@ else if(ep<dur)L.push("Запис іде за спільною шкалою: "+m
 else L.push("Запис на сьогодні завершено");
 $("syncInfo").textContent=L.join("\n")}
 var syncTimer=null;
-$("syncBtn").onclick=function(){var p=$("syncPanel");p.hidden=!p.hidden;clearInterval(syncTimer);if(!p.hidden){syncDraw();syncTimer=setInterval(syncDraw,100)}else beepStop()};
+$("syncBtn").onclick=function(){var p=$("syncPanel");p.hidden=!p.hidden;clearInterval(syncTimer);if(!p.hidden){beepCtxGet();syncListen();syncDraw();syncTimer=setInterval(syncDraw,100)}else{syncUnlisten();beepStop()}};
 $("syncNow").onclick=function(){toast("Синхронізація…");syncClock()};
-var beepOn=false,beepCtx=null,beepTimer=null,beepEnd=0;
+var beepOn=false,beepCtx=null,beepTimer=null,beepFrom=0,beepUntil=0,beepLast=0,syncES=null,seenT={};
+var SYNC_URL="https://ntfy.sh/tryvoha-kissarch-sync-7c41e9"; /* публічний канал ntfy.sh: розсилає сигнал «старт тесту» всім відкритим панелям */
+function beepCtxGet(){var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!beepCtx)beepCtx=new AC();if(beepCtx.resume)beepCtx.resume();return beepCtx}
 function beepStop(){beepOn=false;clearInterval(beepTimer);$("syncBeep").textContent="🔔 Тест сигналів"}
-$("syncBeep").onclick=function(){
-if(beepOn){beepStop();return}
-if(silActive){toast("Спершу зупиніть хвилину мовчання");return}
-var AC=window.AudioContext||window.webkitAudioContext;if(!AC){toast("Браузер не підтримує тест");return}
-if(!beepCtx)beepCtx=new AC();if(beepCtx.resume)beepCtx.resume();
-beepOn=true;beepEnd=Date.now()+30000;$("syncBeep").textContent="⏹ Зупинити тест";var last=0;
-beepTimer=setInterval(function(){if(Date.now()>beepEnd||silActive){beepStop();return}
-var ms=nowMs(),next=Math.ceil(ms/1000)*1000,delay=(next-ms)/1000;
-if(next===last||delay>0.6)return;last=next;
-var t=beepCtx.currentTime+Math.max(0,delay),o=beepCtx.createOscillator(),g=beepCtx.createGain(),hi=Math.round(next/1000)%10===0;
+function beepTick(){var ms=nowMs();if(ms>beepUntil||silActive){beepStop();return}
+var next=Math.ceil(Math.max(ms,beepFrom)/1000)*1000,delay=(next-ms)/1000;if(next===beepLast||delay>0.6)return;beepLast=next;
+var c=beepCtx,t=c.currentTime+Math.max(0,delay),o=c.createOscillator(),g=c.createGain(),hi=Math.round(next/1000)%10===0;
 o.frequency.value=hi?1500:900;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.4,t+0.005);g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
-o.connect(g);g.connect(beepCtx.destination);o.start(t);o.stop(t+0.1)},100)};
+o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+0.1)}
+/* t: серверний час (мс), з якого починаються сигнали; сигнали лунають на межах серверних секунд */
+function beepPlan(t){if(silActive||!beepCtxGet())return;beepFrom=t;beepUntil=t+30000;beepLast=0;beepOn=true;$("syncBeep").textContent="⏹ Зупинити тест";clearInterval(beepTimer);beepTimer=setInterval(beepTick,100);toast("Тест сигналів: старт через "+Math.max(0,Math.round((t-nowMs())/1000))+" с")}
+$("syncBeep").onclick=function(){if(beepOn){beepStop();return}if(silActive){toast("Спершу зупиніть хвилину мовчання");return}beepPlan(nowMs()+1000)};
+function syncListen(){if(syncES||typeof EventSource==="undefined")return;
+try{syncES=new EventSource(SYNC_URL+"/sse")}catch(e){syncES=null;return}
+syncES.onmessage=function(e){var j,m;try{j=JSON.parse(e.data)}catch(x){return}if(!j||j.event!=="message")return;try{m=JSON.parse(j.message)}catch(x){return}
+if(!m||m.k!=="beep"||!isFinite(m.t)||seenT[m.t])return;var d=m.t-nowMs();if(d<-1500||d>30000)return;seenT[m.t]=1;beepPlan(m.t)}}
+function syncUnlisten(){if(syncES){syncES.close();syncES=null}}
+$("syncAll").onclick=function(){if(silActive){toast("Спершу зупиніть хвилину мовчання");return}if(!beepCtxGet()){toast("Браузер не підтримує тест");return}
+var t=nowMs()+4000;seenT[t]=1;beepPlan(t);
+fetch(SYNC_URL,{method:"POST",body:JSON.stringify({k:"beep",t:t})}).then(function(r){if(!r.ok)throw 0;toast("Надіслано на пристрої з відкритою панеллю")}).catch(function(){toast("Не вдалося надіслати іншим пристроям (ntfy.sh недоступний)")})};
 
 /* white noise */
 function refreshNoise(){var byAlert=mode!=="calm"&&!!S.noisePauseAlert,paused=byAlert||silActive,st=$("noiseSt");
