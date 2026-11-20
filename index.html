@@ -183,6 +183,8 @@ body.soundbar-on{padding-bottom:64px}
   <div class="card panel"><h3>Регіон</h3>
     <label class="field"><span>Область</span><select id="oblast"></select></label>
     <label class="field"><span>Район</span><select id="raion"></select></label>
+    <div class="chips" style="margin:10px 0 4px"><button class="btn sm" id="regDefSave">⭐ Зробити за замовчуванням</button><button class="btn sm" id="regDefGo">↩ Мій за замовчуванням</button></div>
+    <div class="st" id="regDefInfo"></div>
     <div class="row field"><span style="color:var(--fg)">Лише повітряні тривоги</span><button class="sw" id="airOnly" role="switch" aria-checked="true" aria-label="Лише повітряні"></button></div>
     <label class="field"><span id="intLbl">Опитування сервера: 10 с</span><input type="range" id="interval" min="10" max="60" step="5" value="10"></label>
     <div class="field"><span>Токен API 🔒</span>
@@ -280,6 +282,7 @@ if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm
 delete S.token;
 if(S.ver!==3){S.ver=3;S.oblast="Рівненська область";S.raion="Рівненський"}
 if(S.ver!==4){S.ver=4;if(S.oblast==="Рівненська область"&&(!S.raion||S.raion==="Уся область"))S.raion="Рівненський"} /* за замовчуванням: Рівненський район, а не вся область */
+if(S.defO){S.oblast=S.defO;S.raion=S.defR||"Уся область"} /* власний регіон за замовчуванням, який користувач обрав сам */
 function save(){try{localStorage.setItem("tryvoha",JSON.stringify(S))}catch(e){}}
 var tt;function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(tt);tt=setTimeout(function(){t.classList.remove("on")},2200)}
 function pad(n){return String(n).padStart(2,"0")}
@@ -639,6 +642,15 @@ function fillRaion(){ra.innerHTML="";OBL[ob.value].forEach(function(r){ra.add(ne
 function pill(){$("regionPill").textContent="📍 "+(ob.value.indexOf("м. ")===0||ra.value==="Уся область"?ob.value:ra.value+" р-н")}
 ob.onchange=function(){S.oblast=ob.value;S.raion="";fillRaion();S.raion=ra.value;pill();save();toast("Регіон: "+S.oblast)};
 ra.onchange=function(){S.raion=ra.value;pill();save();toast("Район: "+S.raion)};
+/* власний регіон за замовчуванням */
+function applyRegion(o,r){if(!(o in OBL))return false;S.oblast=o;S.raion=r;ob.value=o;fillRaion();
+var list=OBL[o],hit=list.filter(function(x){return x===r||(x!=="Уся область"&&r!=="Уся область"&&rKey(x)===rKey(r))})[0];
+ra.value=hit||list[0];S.raion=ra.value;pill();save();resolveTarget();try{if(liveOn)poll()}catch(e){}return true}
+function regDefLabel(){var o=S.defO||"Рівненська область",r=S.defR||"Рівненський";return(r==="Уся область"||o.indexOf("м. ")===0)?o:r+" р-н"}
+function regDefDraw(){$("regDefInfo").textContent="Ваш регіон за замовчуванням: "+regDefLabel()+(S.defO?" (обрано вами; застосовується при кожному відкритті сайту)":" (стандартний)")}
+$("regDefSave").onclick=function(){S.defO=ob.value;S.defR=ra.value;save();regDefDraw();toast("За замовчуванням: "+regDefLabel())};
+$("regDefGo").onclick=function(){if(applyRegion(S.defO||"Рівненська область",S.defR||"Рівненський"))toast("Регіон: "+regDefLabel())};
+regDefDraw();
 tog($("airOnly"),function(v){S.air=v;save()});
 /* захищений токен (AES-GCM, ключ з пароля) */
 var TOKEN=null,TOKEN_PW=null,MASK="••••••••••••••••";
