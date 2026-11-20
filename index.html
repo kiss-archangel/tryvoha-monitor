@@ -123,6 +123,9 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
 #livePwRow input{flex:1}
 #pwBox input{flex:1}
 @keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}.shake{animation:shk .25s 2}
+#soundBar{position:fixed;left:0;right:0;bottom:0;z-index:9999;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:var(--blue,#2563eb);color:#fff;font-weight:700;font-size:16px;text-align:center;cursor:pointer;box-shadow:0 -4px 20px rgba(0,0,0,.35);user-select:none}
+body.soundbar-on{padding-bottom:64px}
+@media(prefers-reduced-motion:no-preference){#soundBar{animation:sbp 1.8s ease-in-out infinite}@keyframes sbp{50%{filter:brightness(1.25)}}}
 </style>
 </head>
 <body>
@@ -237,6 +240,7 @@ select,input[type=text],input[type=time],input[type=password]{width:100%;backgro
 </div>
 <div class="toast" id="toast" role="status"></div>
 
+<div id="soundBar" role="button" tabindex="0">🔊 Натисніть, щоб увімкнути та відтворити звук</div>
 <script>
 (function(){
 "use strict";
@@ -611,6 +615,12 @@ presRow(box,(nickOf(PRES_ID)?"🏷️ "+nickOf(PRES_ID)+" — ":"")+me.dev+" "+m
 ids.slice(0,100).forEach(function(id){var d=peers[id].d,up=d.up+Math.max(0,(now-peers[id].t)/1000);
 presRow(box,(nickOf(id)?"🏷️ "+nickOf(id)+" — ":"")+d.dev+" "+d.ua+" · "+d.os+" · #"+id,[d.lang,d.tz,d.scr,d.st,"на сайті "+Math.max(1,Math.round(up/60))+" хв","годинник пристрою "+f3(d.off/-1000)+" с"].filter(Boolean).join(" · "),id)});presHistRender(now)}
 
+/* банер «увімкнути звук»: висить, поки користувач не натисне (браузери без дотику блокують автозвук) */
+(function(){var bar=$("soundBar");if(!bar)return;document.body.classList.add("soundbar-on");
+var evs=["click","touchend","keydown"];
+function done(e){if(e.type==="keydown"&&(e.key==="Tab"||e.key==="Shift"||e.key==="Control"||e.key==="Alt"||e.key==="Meta"))return;
+bar.remove();document.body.classList.remove("soundbar-on");evs.forEach(function(ev){document.removeEventListener(ev,done,true)})}
+evs.forEach(function(ev){document.addEventListener(ev,done,true)})})();
 presStart();setInterval(presRender,2000);
 try{if(localStorage.getItem("tryvoha_adm")===ADM_HASH)admUI(true)}catch(e){}
 
