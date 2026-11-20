@@ -279,6 +279,7 @@ try{var raw=localStorage.getItem("tryvoha");if(raw)Object.assign(S,JSON.parse(ra
 if(!(S.interval>=10))S.interval=10;S.proxy=PUBLIC_PROXY;S.provider="ukrainealarm";
 delete S.token;
 if(S.ver!==3){S.ver=3;S.oblast="Рівненська область";S.raion="Рівненський"}
+if(S.ver!==4){S.ver=4;if(S.oblast==="Рівненська область"&&(!S.raion||S.raion==="Уся область"))S.raion="Рівненський"} /* за замовчуванням: Рівненський район, а не вся область */
 function save(){try{localStorage.setItem("tryvoha",JSON.stringify(S))}catch(e){}}
 var tt;function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(tt);tt=setTimeout(function(){t.classList.remove("on")},2200)}
 function pad(n){return String(n).padStart(2,"0")}
